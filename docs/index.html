@@ -12,6 +12,9 @@
     header p { font-size: 1.1rem; color: #adbac7; max-width: 600px; margin: 0 auto 24px; }
     .btn { display: inline-block; background: #2ea44f; color: #fff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 1rem; margin: 4px; }
     .btn-outline { background: transparent; border: 1px solid #adbac7; color: #fff; }
+    .dl-buttons { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 8px; }
+    .btn-dl { display: inline-block; background: #2ea44f; color: #fff; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 0.95rem; }
+    .btn-dl:hover { background: #2c974b; }
     main { max-width: 800px; margin: 0 auto; padding: 48px 24px; }
     h2 { font-size: 1.4rem; margin: 40px 0 16px; border-bottom: 1px solid #e1e4e8; padding-bottom: 8px; }
     .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin: 24px 0; }
@@ -34,11 +37,20 @@
   <header>
     <h1>cbz-image-optimizer</h1>
     <p>Bulk-resize images inside ZIP/CBZ archives — significantly reduce file size with parallel processing.</p>
-    <a class="btn" href="https://github.com/cbz-tools/cbz-image-optimizer/releases/latest">Download Latest Release</a>
-    <a class="btn btn-outline" href="https://github.com/cbz-tools/cbz-image-optimizer">View on GitHub</a>
+    <div class="dl-buttons">
+      <a class="btn-dl" href="https://github.com/cbz-tools/cbz-image-optimizer/releases/latest/download/cbz-image-optimizer-v0.1.0-windows-x64.zip">⬇ Download for Windows</a>
+      <a class="btn-dl" href="https://github.com/cbz-tools/cbz-image-optimizer/releases/latest/download/cbz-image-optimizer-v0.1.0-linux-x64.tar.gz">⬇ Download for Linux</a>
+      <a class="btn-dl" href="https://github.com/cbz-tools/cbz-image-optimizer/releases/latest/download/cbz-image-optimizer-v0.1.0-macos-x64.tar.gz">⬇ Download for macOS</a>
+    </div>
+    <p style="margin-top:12px;font-size:0.85rem;color:#adbac7;"><a class="btn btn-outline" style="font-size:0.85rem;padding:6px 14px;" href="https://github.com/cbz-tools/cbz-image-optimizer">View on GitHub</a></p>
   </header>
 
   <main>
+    <div class="screenshots" style="margin-bottom:32px;">
+      <img src="screenshots/gui-filelist.png" alt="GUI file list">
+      <img src="screenshots/gui-done.png" alt="GUI done">
+    </div>
+
     <h2>Features</h2>
     <div class="features">
       <div class="feature">
