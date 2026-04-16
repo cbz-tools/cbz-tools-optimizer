@@ -58,7 +58,6 @@ jobs:
         with:
           files: "*.zip"
           draft: false
-          generate_release_notes: true
 
   build-linux:
     name: Build Linux (CLI only)
