@@ -1,0 +1,8 @@
+/target
+Cargo.lock
+.env
+*.exe.pdb
+*.log
+
+# Local machine-specific cargo config (linker paths etc.)
+.cargo/config.toml

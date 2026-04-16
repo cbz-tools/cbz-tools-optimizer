@@ -1,0 +1,22 @@
+[package]
+name = "cbz-image-optimizer-cli"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "cbz-image-optimizer"
+path = "src/main.rs"
+
+[dependencies]
+cbz-image-optimizer-core = { path = "../core", features = ["clap"] }
+anyhow.workspace = true
+log.workspace = true
+env_logger.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+# CLI引数パース
+clap = { version = "4", features = ["derive"] }
+# ログファイルのタイムスタンプ生成
+chrono = "0.4"
