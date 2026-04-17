@@ -60,11 +60,12 @@ cbz-image-optimizer --output-dir ./output input.cbz
 | `--preset` | `ipad` | Size preset (see table below) |
 | `-W`, `--max-width` | — | Maximum width in pixels (`--preset custom` only) |
 | `-H`, `--max-height` | — | Maximum height in pixels (`--preset custom` only) |
-| `-q`, `--quality` | 85 | JPEG quality (1–100) |
+| `-q`, `--quality` | 85 | JPEG quality (1–100) — used when `--output-format jpeg`, or `original` without `--convert-only` (JPEG inputs may be re-encoded) |
 | `-s`, `--suffix` | `_new` | Output filename suffix |
 | `-o`, `--output-dir` | (same as input) | Output directory |
 | `-t`, `--threads` | 0 (auto) | Number of threads (0 = half of logical CPUs) |
-| `--output-format` | `jpeg` | Output image format: `jpeg` / `png` / `webp` / `original` |
+| `--output-format` | `jpeg` | Output image format: `jpeg` / `png` / `webp` / `avif` / `original` |
+| `--convert-only` | — | Convert format only — skip resize entirely. `--preset` / `-W` / `-H` are ignored. Same-format files are passed through without re-encoding (zero degradation) |
 | `--log-mode` | `cli` | Log output: `cli` / `silent` / `both` / `file` |
 | `--overwrite-mode` | `skip` | Output conflict resolution: `skip` / `overwrite` / `rename` |
 | `--json` | — | Output progress as JSON lines (for scripting and automation) |
@@ -94,12 +95,14 @@ cbz-image-optimizer --output-dir ./output input.cbz
 | PNG | Yes | Yes |
 | WebP (static) | Yes | Yes |
 | WebP (animated) | Detected, skipped | — |
+| AVIF | — | Yes |
 | BMP | Yes | Converted to output format |
 | TIFF | Yes | Converted to output format |
 | GIF | Skipped | — |
 
 Archives containing animated WebP or GIF are skipped entirely to preserve animations.  
-BMP and TIFF inputs are converted to the format specified by `--output-format` (default: `jpeg`).
+BMP and TIFF inputs are converted to the format specified by `--output-format` (default: `jpeg`).  
+AVIF is supported as **output only** (`--output-format avif`). AVIF files inside a ZIP are passed through unchanged.
 
 ---
 
@@ -182,13 +185,3 @@ See [THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md).
 
 MIT — see [LICENSE](LICENSE).
 
----
-
-## Support
-
-If cbz-image-optimizer saves you storage or improves your workflow,
-consider supporting development:
-
-[![GitHub Sponsors](https://img.shields.io/github/sponsors/cbz-tools?style=social)](https://github.com/sponsors/cbz-tools)
-
-Your support helps maintain the project and add new features — thank you ❤️

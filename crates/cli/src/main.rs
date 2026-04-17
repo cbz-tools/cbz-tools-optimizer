@@ -30,7 +30,8 @@ struct Args {
     #[arg(short = 'H', long, default_value_t = 1080, hide_default_value = true)]
     max_height: u32,
 
-    /// JPEG quality (1-100)
+    /// JPEG quality (1-100) — used when --output-format is jpeg, or when --output-format
+    /// is original and --convert-only is not set (JPEG inputs may be re-encoded)
     #[arg(short, long, default_value_t = 85)]
     quality: u8,
 
@@ -59,9 +60,17 @@ struct Args {
     ///   jpeg    : convert all images to JPEG (default)
     ///   png     : convert all images to PNG
     ///   webp    : convert all images to lossless WebP
+    ///   avif    : convert all images to AVIF
     ///   original: keep original format
     #[arg(long, value_enum, default_value = "jpeg", verbatim_doc_comment)]
     output_format: OutputFormat,
+
+    /// Convert format only — skip resize entirely.
+    /// --preset / --max-width / --max-height are ignored when this flag is set.
+    /// If input and output formats match, bytes are passed through without re-encoding
+    /// (zero degradation). Combine with --output-format to change format without resizing.
+    #[arg(long)]
+    convert_only: bool,
 
     /// Log output mode:
     ///   cli    : console output only (default)
@@ -121,6 +130,7 @@ fn main() -> Result<()> {
         output_suffix: args.suffix,
         threads: args.threads,
         output_format: args.output_format,
+        convert_only: args.convert_only,
         log_mode: args.log_mode,
         overwrite_mode: args.overwrite_mode,
     };
@@ -130,17 +140,30 @@ fn main() -> Result<()> {
     let print_cli = !json_mode && matches!(config.log_mode, LogMode::Cli | LogMode::Both);
 
     if print_cli {
+        // Quality applies to JPEG output, or Original format when not convert_only
+        // (JPEG inputs in the archive may be re-encoded)
+        let is_jpeg_out = matches!(config.output_format, OutputFormat::Jpeg)
+            || (matches!(config.output_format, OutputFormat::Original) && !config.convert_only);
         let (display_w, display_h) = config.preset.effective_dimensions(config.max_width, config.max_height);
         eprintln!("cbz-image-optimizer  Processing {} file(s)", total);
-        eprintln!(
-            "Settings: preset={:?} ({}x{}) / quality={} / format={:?} / threads={}",
-            config.preset,
-            display_w,
-            display_h,
-            config.jpeg_quality,
-            config.output_format,
-            if config.threads == 0 { "auto (half of CPUs)".to_string() } else { config.threads.to_string() }
-        );
+        if config.convert_only {
+            eprintln!(
+                "Settings: convert-only / format={:?}{}/ threads={}",
+                config.output_format,
+                if is_jpeg_out { format!(" / quality={} ", config.jpeg_quality) } else { " ".to_string() },
+                if config.threads == 0 { "auto (half of CPUs)".to_string() } else { config.threads.to_string() }
+            );
+        } else {
+            eprintln!(
+                "Settings: preset={:?} ({}x{}) / format={:?}{}/ threads={}",
+                config.preset,
+                display_w,
+                display_h,
+                config.output_format,
+                if is_jpeg_out { format!(" / quality={} ", config.jpeg_quality) } else { " ".to_string() },
+                if config.threads == 0 { "auto (half of CPUs)".to_string() } else { config.threads.to_string() }
+            );
+        }
         eprintln!("{}", "-".repeat(60));
     }
     let write_file = matches!(config.log_mode, LogMode::Both | LogMode::File);
@@ -286,9 +309,17 @@ fn write_log(
     buf.push_str("cbz-image-optimizer run log\n");
     buf.push_str(&format!("Date: {}\n", datetime_str));
     buf.push_str("========================================\n");
+    let is_jpeg_out = matches!(config.output_format, OutputFormat::Jpeg)
+        || (matches!(config.output_format, OutputFormat::Original) && !config.convert_only);
     buf.push_str("Settings:\n");
-    buf.push_str(&format!("  Preset  : {} ({}x{})\n", preset_name, pw, ph));
-    buf.push_str(&format!("  Quality : {}\n", config.jpeg_quality));
+    if config.convert_only {
+        buf.push_str("  Mode    : convert-only (no resize)\n");
+    } else {
+        buf.push_str(&format!("  Preset  : {} ({}x{})\n", preset_name, pw, ph));
+    }
+    if is_jpeg_out {
+        buf.push_str(&format!("  Quality : {}\n", config.jpeg_quality));
+    }
     buf.push_str(&format!("  Format  : {}\n", format_name));
     buf.push_str(&format!("  Threads : {}\n", threads_str));
     buf.push_str("----------------------------------------\n");

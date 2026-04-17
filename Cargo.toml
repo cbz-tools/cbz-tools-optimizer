@@ -7,7 +7,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["cbz-tools"]
 license = "MIT"
@@ -23,7 +23,7 @@ lto = "thin"
 
 [workspace.dependencies]
 # 画像処理
-image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "bmp", "tiff", "gif"] }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "avif", "bmp", "tiff", "gif"] }
 # 並列処理
 rayon = "1.10"
 # ZIP

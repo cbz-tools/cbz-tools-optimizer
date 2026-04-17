@@ -21,6 +21,7 @@ pub struct Strings {
     pub status_error: &'static str,
     pub preset_label: &'static str,
     pub format_label: &'static str,
+    pub convert_only_label: &'static str,
     pub quality_label: &'static str,
     pub suffix_label: &'static str,
     pub output_dir_label: &'static str,
@@ -32,7 +33,7 @@ pub struct Strings {
     pub bulk_add_title: &'static str,
     pub bulk_add_hint: &'static str,
     pub bulk_add_ok: &'static str,
-    pub support: &'static str,
+    pub reset_defaults: &'static str,
     pub progress: &'static str,
 }
 
@@ -55,6 +56,7 @@ pub fn strings(lang: &Lang) -> Strings {
             status_error: "✗ Error",
             preset_label: "Preset",
             format_label: "Format",
+            convert_only_label: "Convert only (no resize)",
             quality_label: "Quality",
             suffix_label: "Suffix",
             output_dir_label: "Output Dir",
@@ -66,7 +68,7 @@ pub fn strings(lang: &Lang) -> Strings {
             bulk_add_title: "Bulk Add Files",
             bulk_add_hint: "Enter full paths (one per line)",
             bulk_add_ok: "Add",
-            support: "♥ Sponsor",
+            reset_defaults: "Reset to defaults",
             progress: "{current}/{total} files",
         },
         Lang::Zh => Strings {
@@ -86,6 +88,7 @@ pub fn strings(lang: &Lang) -> Strings {
             status_error: "✗ 错误",
             preset_label: "预设",
             format_label: "格式",
+            convert_only_label: "仅转换格式（不缩放）",
             quality_label: "质量",
             suffix_label: "后缀",
             output_dir_label: "输出目录",
@@ -97,7 +100,7 @@ pub fn strings(lang: &Lang) -> Strings {
             bulk_add_title: "批量添加文件",
             bulk_add_hint: "输入完整路径（每行一个）",
             bulk_add_ok: "添加",
-            support: "♥ 赞助",
+            reset_defaults: "恢复默认值",
             progress: "{current}/{total} 个文件",
         },
         Lang::Ja => Strings {
@@ -117,6 +120,7 @@ pub fn strings(lang: &Lang) -> Strings {
             status_error: "✗ エラー",
             preset_label: "プリセット",
             format_label: "フォーマット",
+            convert_only_label: "フォーマット変換のみ（リサイズなし）",
             quality_label: "品質",
             suffix_label: "サフィックス",
             output_dir_label: "出力先",
@@ -128,7 +132,7 @@ pub fn strings(lang: &Lang) -> Strings {
             bulk_add_title: "一括ファイル登録",
             bulk_add_hint: "フルパスを1行ずつ入力",
             bulk_add_ok: "追加",
-            support: "♥ スポンサー",
+            reset_defaults: "デフォルトに戻す",
             progress: "{current}/{total} ファイル",
         },
     }

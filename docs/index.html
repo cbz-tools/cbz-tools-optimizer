@@ -38,9 +38,9 @@
     <h1>cbz-image-optimizer</h1>
     <p>Bulk-resize images inside ZIP/CBZ archives — significantly reduce file size with parallel processing.</p>
     <div class="dl-buttons">
-      <a class="btn-dl" href="https://github.com/cbz-tools/cbz-image-optimizer/releases/latest/download/cbz-image-optimizer-v0.1.0-windows-x64.zip">⬇ Download for Windows</a>
-      <a class="btn-dl" href="https://github.com/cbz-tools/cbz-image-optimizer/releases/latest/download/cbz-image-optimizer-v0.1.0-linux-x64.tar.gz">⬇ Download for Linux</a>
-      <a class="btn-dl" href="https://github.com/cbz-tools/cbz-image-optimizer/releases/latest/download/cbz-image-optimizer-v0.1.0-macos-x64.tar.gz">⬇ Download for macOS</a>
+      <a class="btn-dl" href="https://github.com/cbz-tools/cbz-image-optimizer/releases/latest/download/cbz-image-optimizer-v0.1.1-windows-x64.zip">⬇ Download for Windows</a>
+      <a class="btn-dl" href="https://github.com/cbz-tools/cbz-image-optimizer/releases/latest/download/cbz-image-optimizer-v0.1.1-linux-x64.tar.gz">⬇ Download for Linux</a>
+      <a class="btn-dl" href="https://github.com/cbz-tools/cbz-image-optimizer/releases/latest/download/cbz-image-optimizer-v0.1.1-macos-x64.tar.gz">⬇ Download for macOS</a>
     </div>
     <p style="margin-top:12px;font-size:0.85rem;color:#adbac7;"><a class="btn btn-outline" style="font-size:0.85rem;padding:6px 14px;" href="https://github.com/cbz-tools/cbz-image-optimizer">View on GitHub</a></p>
   </header>
@@ -87,7 +87,10 @@ cbz-image-optimizer input.cbz
 cbz-image-optimizer --preset kindle --quality 80 *.cbz
 
 # Custom size
-cbz-image-optimizer --preset custom --max-width 1280 --max-height 720 input.zip</code></pre>
+cbz-image-optimizer --preset custom --max-width 1280 --max-height 720 input.zip
+
+# Convert to AVIF without resizing
+cbz-image-optimizer --output-format avif --convert-only input.cbz</code></pre>
 
     <h2>GUI (Windows)</h2>
     <div class="screenshots">
@@ -102,9 +105,25 @@ cbz-image-optimizer --preset custom --max-width 1280 --max-height 720 input.zip<
       <tr><td><code>ipad-air</code></td><td>2360</td><td>1640</td><td>iPad Air</td></tr>
       <tr><td><code>ipad-pro</code></td><td>2732</td><td>2048</td><td>iPad Pro</td></tr>
       <tr><td><code>kindle</code></td><td>1264</td><td>1680</td><td>Kindle Paperwhite</td></tr>
-      <tr><td><code>full-hd</code></td><td>1920</td><td>1080</td><td>Full HD</td></tr>
-      <tr><td><code>four-k</code></td><td>3840</td><td>2160</td><td>4K</td></tr>
+      <tr><td><code>hd</code></td><td>1280</td><td>720</td><td>HD display</td></tr>
+      <tr><td><code>full-hd</code></td><td>1920</td><td>1080</td><td>Full HD display</td></tr>
+      <tr><td><code>four-k</code></td><td>3840</td><td>2160</td><td>4K display</td></tr>
+      <tr><td><code>custom</code></td><td>(manual)</td><td>(manual)</td><td>Use <code>-W</code> / <code>-H</code></td></tr>
     </table>
+
+    <h2>Supported Formats</h2>
+    <table>
+      <tr><th>Format</th><th>Input</th><th>Output</th></tr>
+      <tr><td>JPEG</td><td>Yes</td><td>Yes</td></tr>
+      <tr><td>PNG</td><td>Yes</td><td>Yes</td></tr>
+      <tr><td>WebP (static)</td><td>Yes</td><td>Yes</td></tr>
+      <tr><td>WebP (animated)</td><td>Detected, skipped</td><td>—</td></tr>
+      <tr><td>AVIF</td><td>—</td><td>Yes</td></tr>
+      <tr><td>BMP</td><td>Yes</td><td>Converted</td></tr>
+      <tr><td>TIFF</td><td>Yes</td><td>Converted</td></tr>
+      <tr><td>GIF</td><td>Skipped</td><td>—</td></tr>
+    </table>
+    <p style="margin-top:8px;font-size:0.9rem;color:#586069;">AVIF is supported as output only (<code>--output-format avif</code>). Use <code>--convert-only</code> to convert format without resizing — when set, <code>--preset</code> / <code>-W</code> / <code>-H</code> are ignored.</p>
 
     <h2>License</h2>
     <p>MIT — free to use, modify, and distribute.</p>
@@ -114,8 +133,7 @@ cbz-image-optimizer --preset custom --max-width 1280 --max-height 720 input.zip<
     <p>
       <a href="https://github.com/cbz-tools/cbz-image-optimizer">GitHub</a> ·
       <a href="https://github.com/cbz-tools/cbz-image-optimizer/releases">Releases</a> ·
-      <a href="https://github.com/cbz-tools/cbz-image-optimizer/issues">Issues</a> ·
-      <a href="https://github.com/sponsors/cbz-tools">Sponsor</a>
+      <a href="https://github.com/cbz-tools/cbz-image-optimizer/issues">Issues</a>
     </p>
     <p style="margin-top:12px;">© 2026 cbz-tools · MIT License</p>
   </footer>

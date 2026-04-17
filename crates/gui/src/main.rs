@@ -12,7 +12,6 @@ use app_config::AppConfig;
 use lang::{strings, Lang};
 
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
@@ -82,11 +81,21 @@ fn setup_style(ctx: &egui::Context) {
 // ---------------------------------------------------------------------------
 
 fn main() -> eframe::Result<()> {
+    // Load config early to restore window position before creating the viewport.
+    // If the saved monitor no longer exists the OS moves the window to the primary monitor.
+    let startup_config = AppConfig::load();
+
+    let mut viewport = egui::ViewportBuilder::default()
+        .with_title("CBZ Image Optimizer")
+        .with_inner_size([700.0, 540.0])
+        .with_drag_and_drop(true);
+
+    if let (Some(x), Some(y)) = (startup_config.window_x, startup_config.window_y) {
+        viewport = viewport.with_position(egui::Pos2::new(x as f32, y as f32));
+    }
+
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_title("CBZ Image Optimizer")
-            .with_inner_size([700.0, 540.0])
-            .with_drag_and_drop(true),
+        viewport,
         ..Default::default()
     };
     eframe::run_native(
@@ -148,6 +157,9 @@ struct App {
     completion_msg: Option<String>,
 
     settings_draft: AppConfig,
+
+    /// Last known window position — saved to AppConfig on exit
+    last_window_pos: Option<egui::Pos2>,
 }
 
 impl App {
@@ -157,6 +169,10 @@ impl App {
             "zh" => Lang::Zh,
             "ja" => Lang::Ja,
             _ => Lang::En,
+        };
+        let last_window_pos = match (config.window_x, config.window_y) {
+            (Some(x), Some(y)) => Some(egui::Pos2::new(x as f32, y as f32)),
+            _ => None,
         };
         Self {
             settings_draft: config.clone(),
@@ -171,6 +187,7 @@ impl App {
             show_bulk_add: false,
             bulk_add_text: String::new(),
             completion_msg: None,
+            last_window_pos,
         }
     }
 
@@ -202,9 +219,11 @@ impl App {
         let output_format = match self.config.output_format.as_str() {
             "png"      => OutputFormat::Png,
             "webp"     => OutputFormat::Webp,
+            "avif"     => OutputFormat::Avif,
             "original" => OutputFormat::Original,
             _          => OutputFormat::Jpeg,
         };
+        let convert_only = self.config.convert_only;
         let overwrite_mode = match self.config.overwrite_mode.as_str() {
             "overwrite" => OverwriteMode::Overwrite,
             "rename"    => OverwriteMode::Rename,
@@ -222,6 +241,7 @@ impl App {
             max_height: self.config.max_height,
             jpeg_quality: self.config.jpeg_quality,
             output_format,
+            convert_only,
             output_dir: if self.config.output_dir.is_empty() {
                 None
             } else {
@@ -324,7 +344,20 @@ impl App {
 // ---------------------------------------------------------------------------
 
 impl eframe::App for App {
+    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        if let Some(pos) = self.last_window_pos {
+            self.config.window_x = Some(pos.x as i32);
+            self.config.window_y = Some(pos.y as i32);
+            self.config.save();
+        }
+    }
+
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // Track window position for monitor memory (saved in on_exit)
+        if let Some(rect) = ctx.input(|i| i.viewport().outer_rect) {
+            self.last_window_pos = Some(rect.min);
+        }
+
         // Drain status channel
         if let Some(rx) = &self.status_rx {
             while let Ok(update) = rx.try_recv() {
@@ -455,15 +488,31 @@ impl eframe::App for App {
         // ── Settings summary bar ──────────────────────────────────────────
         egui::TopBottomPanel::top("settings_summary").show(ctx, |ui| {
             let s = strings(&self.lang);
-            ui.label(format!(
-                "{}  {}  |  {}  {}  |  {}  {}",
-                s.preset_label,
-                self.config.preset,
-                s.format_label,
-                self.config.output_format,
-                s.quality_label,
-                self.config.jpeg_quality,
-            ));
+            let is_jpeg_out = self.config.output_format == "jpeg"
+                || (self.config.output_format == "original" && !self.config.convert_only);
+            let quality_part = if is_jpeg_out {
+                format!("  |  {}  {}", s.quality_label, self.config.jpeg_quality)
+            } else {
+                String::new()
+            };
+            if self.config.convert_only {
+                ui.label(format!(
+                    "{}  |  {}  {}{}",
+                    s.convert_only_label,
+                    s.format_label,
+                    self.config.output_format,
+                    quality_part,
+                ));
+            } else {
+                ui.label(format!(
+                    "{}  {}  |  {}  {}{}",
+                    s.preset_label,
+                    self.config.preset,
+                    s.format_label,
+                    self.config.output_format,
+                    quality_part,
+                ));
+            }
         });
 
         // ── Bottom panel: progress + start ────────────────────────────────
@@ -504,11 +553,6 @@ impl eframe::App for App {
                     );
                 }
 
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.small_button(s.support).clicked() {
-                        open_url("https://github.com/sponsors/cbz-tools");
-                    }
-                });
             });
         });
 
@@ -648,6 +692,8 @@ impl eframe::App for App {
             egui::Window::new(s.settings)
                 .collapsible(false)
                 .resizable(false)
+                .pivot(egui::Align2::CENTER_CENTER)
+                .default_pos(ctx.screen_rect().center())
                 .open(&mut open)
                 .show(ctx, |ui| {
                     let d = &mut self.settings_draft;
@@ -658,36 +704,39 @@ impl eframe::App for App {
                         .show(ui, |ui| {
                             let s2 = strings(&self.lang);
 
-                            // Preset
+                            // Preset (disabled when convert_only)
                             ui.label(s2.preset_label);
-                            egui::ComboBox::from_id_salt("preset_combo")
-                                .selected_text(&d.preset)
-                                .show_ui(ui, |ui| {
-                                    for p in &[
-                                        "ipad", "ipad-air", "ipad-pro", "kindle", "hd",
-                                        "full-hd", "four-k", "custom",
-                                    ] {
-                                        ui.selectable_value(
-                                            &mut d.preset,
-                                            p.to_string(),
-                                            *p,
-                                        );
-                                    }
-                                });
+                            ui.scope(|ui| {
+                                ui.set_enabled(!d.convert_only);
+                                egui::ComboBox::from_id_salt("preset_combo")
+                                    .selected_text(&d.preset)
+                                    .show_ui(ui, |ui| {
+                                        for p in &[
+                                            "ipad", "ipad-air", "ipad-pro", "kindle", "hd",
+                                            "full-hd", "four-k", "custom",
+                                        ] {
+                                            ui.selectable_value(
+                                                &mut d.preset,
+                                                p.to_string(),
+                                                *p,
+                                            );
+                                        }
+                                    });
+                            });
                             ui.end_row();
 
-                            // Width / Height (only editable for custom)
+                            // Width / Height (editable for custom only, disabled when convert_only)
                             let is_custom = d.preset == "custom";
                             ui.label(s2.width_label);
                             ui.add_enabled(
-                                is_custom,
+                                is_custom && !d.convert_only,
                                 egui::DragValue::new(&mut d.max_width).range(1..=65535),
                             );
                             ui.end_row();
 
                             ui.label(s2.height_label);
                             ui.add_enabled(
-                                is_custom,
+                                is_custom && !d.convert_only,
                                 egui::DragValue::new(&mut d.max_height).range(1..=65535),
                             );
                             ui.end_row();
@@ -697,7 +746,7 @@ impl eframe::App for App {
                             egui::ComboBox::from_id_salt("format_combo")
                                 .selected_text(&d.output_format)
                                 .show_ui(ui, |ui| {
-                                    for f in &["jpeg", "png", "webp", "original"] {
+                                    for f in &["jpeg", "png", "webp", "avif", "original"] {
                                         ui.selectable_value(
                                             &mut d.output_format,
                                             f.to_string(),
@@ -707,9 +756,20 @@ impl eframe::App for App {
                                 });
                             ui.end_row();
 
-                            // Quality
+                            // Convert only
+                            ui.label(s2.convert_only_label);
+                            ui.checkbox(&mut d.convert_only, "");
+                            ui.end_row();
+
+                            // Quality: applies to JPEG output, or Original format when not
+                            // convert_only (JPEG inputs may be re-encoded)
+                            let quality_active = d.output_format == "jpeg"
+                                || (d.output_format == "original" && !d.convert_only);
                             ui.label(s2.quality_label);
-                            ui.add(egui::Slider::new(&mut d.jpeg_quality, 1..=100));
+                            ui.add_enabled(
+                                quality_active,
+                                egui::Slider::new(&mut d.jpeg_quality, 1..=100),
+                            );
                             ui.end_row();
 
                             // Suffix
@@ -771,6 +831,17 @@ impl eframe::App for App {
                             self.settings_draft = self.config.clone();
                             self.show_settings = false;
                         }
+                        let s2 = strings(&self.lang);
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if ui.button(s2.reset_defaults).clicked() {
+                                self.settings_draft = AppConfig {
+                                    lang: self.settings_draft.lang.clone(),
+                                    window_x: self.settings_draft.window_x,
+                                    window_y: self.settings_draft.window_y,
+                                    ..AppConfig::default()
+                                };
+                            }
+                        });
                     });
                 });
             if !open {
@@ -842,22 +913,3 @@ fn is_archive_ext(path: &Path) -> bool {
     )
 }
 
-fn open_url(url: &str) {
-    #[cfg(target_os = "windows")]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        let _ = Command::new("cmd")
-            .args(["/c", "start", "", url])
-            .creation_flags(CREATE_NO_WINDOW)
-            .spawn();
-    }
-    #[cfg(target_os = "macos")]
-    {
-        let _ = Command::new("open").arg(url).spawn();
-    }
-    #[cfg(target_os = "linux")]
-    {
-        let _ = Command::new("xdg-open").arg(url).spawn();
-    }
-}

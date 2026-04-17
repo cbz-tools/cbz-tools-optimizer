@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.1] - 2026-04-18
+
+### Added
+- AVIF output support (`--output-format avif`) via pure-Rust ravif encoder
+- `--convert-only` flag: format conversion without resizing; same-format files are passed through without re-encoding (zero degradation)
+
+### Changed
+- GUI: quality slider now enabled only when output is JPEG (or Original without `--convert-only`)
+- GUI: preset/size options disabled in settings when convert-only is active
+- GUI: settings summary bar shows "Convert only" instead of preset when `--convert-only` is set
+- GUI: settings window centered on the main window
+- GUI: window position is remembered across restarts; previous monitor is restored on next launch
+- GUI: "Reset to defaults" button added to settings window
+- Removed GitHub Sponsors references from all sources
+
+### Fixed
+- GUI: `last_window_pos` now correctly initialized from saved config on startup (window position was not restored on the first exit after launch)
+
+---
+
 ## [0.1.0] - 2026-04-16
 
 ### Added

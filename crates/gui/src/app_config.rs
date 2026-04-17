@@ -8,11 +8,14 @@ pub struct AppConfig {
     pub max_height: u32,
     pub jpeg_quality: u8,
     pub output_format: String,
+    pub convert_only: bool,
     pub suffix: String,
     pub output_dir: String,
     pub threads: usize,
     pub overwrite_mode: String,
     pub log_mode: String,
+    pub window_x: Option<i32>,
+    pub window_y: Option<i32>,
 }
 
 impl Default for AppConfig {
@@ -24,11 +27,14 @@ impl Default for AppConfig {
             max_height: 1536,
             jpeg_quality: 85,
             output_format: "jpeg".into(),
+            convert_only: false,
             suffix: "_new".into(),
             output_dir: String::new(),
             threads: 0,
             overwrite_mode: "skip".into(),
             log_mode: "cli".into(),
+            window_x: None,
+            window_y: None,
         }
     }
 }

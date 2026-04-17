@@ -3,7 +3,10 @@ use image::{DynamicImage, ImageFormat};
 
 use crate::{OptimizeConfig, OutputFormat};
 
-/// Supported image extensions
+/// Supported image extensions for input.
+/// Note: AVIF is supported as output format only (encoding via ravif).
+/// AVIF input decoding requires libdav1d which is not bundled; AVIF files
+/// inside a ZIP are passed through unchanged.
 pub fn is_image(name: &str) -> bool {
     let lower = name.to_lowercase();
     lower.ends_with(".jpg")
@@ -23,6 +26,8 @@ pub fn output_format(name: &str) -> ImageFormat {
         ImageFormat::Png
     } else if lower.ends_with(".webp") {
         ImageFormat::WebP
+    } else if lower.ends_with(".avif") {
+        ImageFormat::Avif
     } else if lower.ends_with(".bmp") {
         ImageFormat::Bmp
     } else if lower.ends_with(".tiff") || lower.ends_with(".tif") {
@@ -55,13 +60,11 @@ pub fn resize_image_bytes(
         return Ok((data.to_vec(), original_ext(entry_name)));
     }
 
-    let img = image::load_from_memory(data)?;
-    let resized = resize_image(img, config);
-
     let (fmt, ext) = match config.output_format {
         OutputFormat::Jpeg     => (ImageFormat::Jpeg, ".jpg"),
         OutputFormat::Png      => (ImageFormat::Png,  ".png"),
         OutputFormat::Webp     => (ImageFormat::WebP, ".webp"),
+        OutputFormat::Avif     => (ImageFormat::Avif, ".avif"),
         OutputFormat::Original => {
             let f = output_format(entry_name);
             let e = original_ext(entry_name);
@@ -69,7 +72,20 @@ pub fn resize_image_bytes(
         }
     };
 
-    let encoded = encode_image(resized, fmt, config.jpeg_quality)?;
+    // convert_only + same format → pass through bytes as-is (zero re-encoding, zero degradation)
+    if config.convert_only && original_ext(entry_name) == ext {
+        return Ok((data.to_vec(), ext));
+    }
+
+    let img = image::load_from_memory(data)?;
+
+    let processed = if config.convert_only {
+        img  // skip resize entirely
+    } else {
+        resize_image(img, config)
+    };
+
+    let encoded = encode_image(processed, fmt, config.jpeg_quality)?;
     Ok((encoded, ext))
 }
 
@@ -82,6 +98,8 @@ fn original_ext(name: &str) -> &'static str {
         ".png"
     } else if lower.ends_with(".webp") {
         ".webp"
+    } else if lower.ends_with(".avif") {
+        ".avif"
     } else if lower.ends_with(".bmp") {
         ".bmp"
     } else if lower.ends_with(".tiff") || lower.ends_with(".tif") {

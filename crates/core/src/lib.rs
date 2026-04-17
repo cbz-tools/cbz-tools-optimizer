@@ -39,6 +39,8 @@ pub enum OutputFormat {
     Png,
     /// Convert all images to lossless WebP
     Webp,
+    /// Convert all images to AVIF
+    Avif,
 }
 
 /// Size preset
@@ -92,7 +94,8 @@ pub struct OptimizeConfig {
     pub max_width: u32,
     /// Maximum height after resizing (px) — used only when preset is Custom
     pub max_height: u32,
-    /// JPEG quality (1-100)
+    /// JPEG quality (1-100) — used when output format is JPEG, or when output format
+    /// is Original and convert_only is false (JPEG inputs may be re-encoded)
     pub jpeg_quality: u8,
     /// Output directory (None = same as input)
     pub output_dir: Option<std::path::PathBuf>,
@@ -102,6 +105,9 @@ pub struct OptimizeConfig {
     pub threads: usize,
     /// Output image format
     pub output_format: OutputFormat,
+    /// Convert format only — skip resize entirely.
+    /// If input and output formats match, bytes are passed through without re-encoding.
+    pub convert_only: bool,
     /// Log output mode
     pub log_mode: LogMode,
     /// Output file conflict resolution
@@ -126,6 +132,7 @@ impl Default for OptimizeConfig {
             output_suffix: "_new".to_string(),
             threads: 0,
             output_format: OutputFormat::Jpeg,
+            convert_only: false,
             log_mode: LogMode::Cli,
             overwrite_mode: OverwriteMode::Skip,
         }
