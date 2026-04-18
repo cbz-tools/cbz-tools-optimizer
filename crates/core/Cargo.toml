@@ -1,0 +1,20 @@
+[package]
+name = "cbz-tools-optimizer-core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+image.workspace = true
+rayon.workspace = true
+zip.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+log.workspace = true
+clap = { version = "4", features = ["derive"], optional = true }
+
+[features]
+clap = ["dep:clap"]

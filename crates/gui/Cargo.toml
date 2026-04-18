@@ -1,0 +1,40 @@
+[package]
+name = "cbz-tools-optimizer-gui"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "cbz-opt-gui"
+path = "src/main.rs"
+
+[dependencies]
+cbz-tools-optimizer-core = { path = "../core" }
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+log.workspace = true
+env_logger.workspace = true
+# GUI フレームワーク
+eframe = { version = "0.29", features = ["default"] }
+egui = "0.29"
+# GUIからCLIへの橋渡し（チャンネル）
+crossbeam-channel = "0.5"
+# 設定保存
+toml = "0.8"
+# ファイルダイアログ
+rfd = "0.15"
+
+[target.'cfg(windows)'.build-dependencies]
+winres = "0.1"
+
+# Windows: コンソール非表示
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3", features = ["winuser"] }
+
+# Windows リリースビルドでコンソール窓を出さない
+[target.'cfg(windows)']
+[package.metadata.winres]
+FileDescription = "CBZ Optimizer"
+ProductName = "CBZ Optimizer"
