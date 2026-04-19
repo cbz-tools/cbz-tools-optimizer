@@ -30,6 +30,9 @@
     .screenshots { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0; }
     .screenshots img { width: 100%; border: 1px solid #e1e4e8; border-radius: 6px; }
     .note { background: #f6f8fa; border-left: 3px solid #0366d6; padding: 10px 14px; border-radius: 0 6px 6px 0; font-size: 0.9rem; color: #444; margin: 12px 0; }
+    .stat-bar { background: #f0fff4; border: 1px solid #34d058; border-radius: 8px; padding: 16px 24px; text-align: center; margin: 0 0 32px; }
+    .stat-bar .stat-main { font-size: 1.5rem; font-weight: 700; color: #22863a; }
+    .stat-bar .stat-sub { font-size: 0.9rem; color: #586069; margin-top: 4px; }
     footer { text-align: center; padding: 32px 24px; color: #586069; font-size: 0.9rem; border-top: 1px solid #e1e4e8; margin-top: 48px; }
     footer a { color: #0366d6; text-decoration: none; }
   </style>
@@ -37,7 +40,7 @@
 <body>
   <header>
     <h1>cbz-tools-optimizer</h1>
-    <p>Optimize images inside ZIP/CBZ archives — resize for your device, convert formats, and reduce file size with parallel processing.</p>
+    <p>High-performance CBZ optimizer built in Rust — batch resize, compress, and convert images (JPEG/PNG/WebP/AVIF) for Kindle and e-readers, fully offline.</p>
     <div class="dl-buttons">
       <a class="btn-dl" href="https://github.com/cbz-tools/cbz-tools-optimizer/releases/latest/download/cbz-tools-optimizer-v0.1.0-windows-x64.zip">⬇ Download for Windows</a>
       <a class="btn-dl" href="https://github.com/cbz-tools/cbz-tools-optimizer/releases/latest/download/cbz-tools-optimizer-v0.1.0-linux-x64.tar.gz">⬇ Download for Linux</a>
@@ -47,9 +50,13 @@
   </header>
 
   <main>
-    <div class="screenshots" style="margin-bottom:32px;">
+    <div class="screenshots" style="margin-bottom:16px;">
       <img src="screenshots/gui-filelist.png" alt="GUI file list">
       <img src="screenshots/gui-done.png" alt="GUI done">
+    </div>
+    <div class="stat-bar">
+      <div class="stat-main">9.0 GB → 647.6 MB &nbsp;(-93%)</div>
+      <div class="stat-sub">Real-world result — resize in 1m 35s</div>
     </div>
 
     <h2>Features</h2>

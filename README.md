@@ -1,6 +1,6 @@
 # cbz-tools-optimizer
 
-Optimize images inside ZIP/CBZ archives — resize, convert formats, and reduce file size with parallel processing.  
+High-performance CBZ optimizer built in Rust — batch resize, compress, and convert images (JPEG/PNG/WebP/AVIF) for Kindle and e-readers, fully offline.  
 CLI for Windows / Linux / macOS. Windows GUI included.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -25,7 +25,7 @@ Extract the archive and run the binary directly — no installation required.
 
 | | |
 |---|---|
-| 📦 **Storage savings** | Significantly reduce file size by resizing images to your target resolution |
+| 📦 **Storage savings** | Significantly reduce file size — real-world result: **9.0 GB → 647.6 MB (-93%)** in 1m 35s |
 | 🔄 **Format conversion** | Convert JPEG / PNG / WebP / AVIF in bulk — resize and convert in a single pass |
 | ⚡ **Speed** | Parallel processing across ZIPs and images via rayon |
 | 🖥️ **Cross-platform** | Windows / Linux / macOS — single binary, no install |
