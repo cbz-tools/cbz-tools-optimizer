@@ -1,6 +1,6 @@
 # cbz-tools-optimizer
 
-Bulk-resize images inside ZIP/CBZ archives — significantly reduce file size with parallel processing.  
+Optimize images inside ZIP/CBZ archives — resize, convert formats, and reduce file size with parallel processing.  
 CLI for Windows / Linux / macOS. Windows GUI included.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -26,6 +26,7 @@ Extract the archive and run the binary directly — no installation required.
 | | |
 |---|---|
 | 📦 **Storage savings** | Significantly reduce file size by resizing images to your target resolution |
+| 🔄 **Format conversion** | Convert JPEG / PNG / WebP / AVIF in bulk — resize and convert in a single pass |
 | ⚡ **Speed** | Parallel processing across ZIPs and images via rayon |
 | 🖥️ **Cross-platform** | Windows / Linux / macOS — single binary, no install |
 | 🎯 **Device-ready presets** | iPad, Kindle, 4K and more — one flag to optimize for your device |
@@ -36,6 +37,8 @@ Extract the archive and run the binary directly — no installation required.
 
 ## CLI Usage
 
+### Resize
+
 ```bash
 # Basic (default: ipad preset 2048×1536, JPEG quality 85)
 cbz-opt input.cbz
@@ -43,7 +46,7 @@ cbz-opt input.cbz
 # Multiple files
 cbz-opt *.zip
 
-# With options
+# Kindle preset
 cbz-opt --preset kindle --quality 80 --suffix _small *.cbz
 
 # Custom size
@@ -52,6 +55,24 @@ cbz-opt --preset custom --max-width 1280 --max-height 720 input.zip
 # Specify output directory
 cbz-opt --output-dir ./output input.cbz
 ```
+
+### Format Conversion
+
+```bash
+# Convert all images to WebP (no resize)
+cbz-opt --output-format webp --convert-only input.cbz
+
+# Convert to AVIF for maximum compression (no resize)
+cbz-opt --output-format avif --convert-only *.cbz
+
+# Resize AND convert to WebP in one pass
+cbz-opt --preset ipad --output-format webp input.cbz
+
+# Convert PNG to JPEG (no resize)
+cbz-opt --output-format jpeg --convert-only input.cbz
+```
+
+> **`--convert-only`**: skips resizing entirely. Same-format files are passed through without re-encoding — zero quality loss.
 
 ### Options
 
@@ -157,7 +178,7 @@ Multiple ZIP/CBZ files
   └── rayon::par_iter()   ← parallel across ZIPs
         └── each ZIP entry
               └── rayon::par_iter()   ← parallel across images
-                    └── resize_exact() with CatmullRom filter
+                    └── resize / convert with CatmullRom filter
 ```
 
 - Images already within the size limit are passed through without re-encoding

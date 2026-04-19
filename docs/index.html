@@ -9,7 +9,7 @@
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #24292e; background: #fff; }
     header { background: #24292e; color: #fff; padding: 48px 24px; text-align: center; }
     header h1 { font-size: 2rem; font-weight: 700; margin-bottom: 12px; }
-    header p { font-size: 1.1rem; color: #adbac7; max-width: 600px; margin: 0 auto 24px; }
+    header p { font-size: 1.1rem; color: #adbac7; max-width: 640px; margin: 0 auto 24px; }
     .btn { display: inline-block; background: #2ea44f; color: #fff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 1rem; margin: 4px; }
     .btn-outline { background: transparent; border: 1px solid #adbac7; color: #fff; }
     .dl-buttons { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 8px; }
@@ -29,6 +29,7 @@
     pre code { background: none; padding: 0; font-size: 0.88rem; }
     .screenshots { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0; }
     .screenshots img { width: 100%; border: 1px solid #e1e4e8; border-radius: 6px; }
+    .note { background: #f6f8fa; border-left: 3px solid #0366d6; padding: 10px 14px; border-radius: 0 6px 6px 0; font-size: 0.9rem; color: #444; margin: 12px 0; }
     footer { text-align: center; padding: 32px 24px; color: #586069; font-size: 0.9rem; border-top: 1px solid #e1e4e8; margin-top: 48px; }
     footer a { color: #0366d6; text-decoration: none; }
   </style>
@@ -36,7 +37,7 @@
 <body>
   <header>
     <h1>cbz-tools-optimizer</h1>
-    <p>Bulk-resize images inside ZIP/CBZ archives — significantly reduce file size with parallel processing.</p>
+    <p>Optimize images inside ZIP/CBZ archives — resize for your device, convert formats, and reduce file size with parallel processing.</p>
     <div class="dl-buttons">
       <a class="btn-dl" href="https://github.com/cbz-tools/cbz-tools-optimizer/releases/latest/download/cbz-tools-optimizer-v0.1.0-windows-x64.zip">⬇ Download for Windows</a>
       <a class="btn-dl" href="https://github.com/cbz-tools/cbz-tools-optimizer/releases/latest/download/cbz-tools-optimizer-v0.1.0-linux-x64.tar.gz">⬇ Download for Linux</a>
@@ -58,12 +59,20 @@
         <p>Significantly reduce file size by resizing images to your target resolution.</p>
       </div>
       <div class="feature">
+        <h3>🔄 Format conversion</h3>
+        <p>Convert JPEG / PNG / WebP / AVIF in bulk — resize and convert in a single pass.</p>
+      </div>
+      <div class="feature">
         <h3>⚡ Speed</h3>
         <p>Parallel processing across ZIPs and images via rayon.</p>
       </div>
       <div class="feature">
         <h3>🖥️ Cross-platform</h3>
         <p>Windows / Linux / macOS — single binary, no install required.</p>
+      </div>
+      <div class="feature">
+        <h3>🎯 Device-ready presets</h3>
+        <p>iPad, Kindle, 4K and more — one flag to optimize for your device.</p>
       </div>
       <div class="feature">
         <h3>🖱️ GUI included</h3>
@@ -80,17 +89,27 @@
     </table>
 
     <h2>CLI Usage</h2>
+
+    <h3 style="font-size:1rem;margin:24px 0 8px;">Resize</h3>
     <pre><code># Basic (default: ipad preset 2048x1536, JPEG quality 85)
 cbz-opt input.cbz
 
-# With options
+# Kindle preset
 cbz-opt --preset kindle --quality 80 *.cbz
 
 # Custom size
-cbz-opt --preset custom --max-width 1280 --max-height 720 input.zip
+cbz-opt --preset custom --max-width 1280 --max-height 720 input.zip</code></pre>
 
-# Convert to AVIF without resizing
-cbz-opt --output-format avif --convert-only input.cbz</code></pre>
+    <h3 style="font-size:1rem;margin:24px 0 8px;">Format Conversion</h3>
+    <pre><code># Convert all images to WebP (no resize)
+cbz-opt --output-format webp --convert-only input.cbz
+
+# Convert to AVIF for maximum compression (no resize)
+cbz-opt --output-format avif --convert-only *.cbz
+
+# Resize AND convert to WebP in one pass
+cbz-opt --preset ipad --output-format webp input.cbz</code></pre>
+    <p class="note"><strong>--convert-only</strong>: skips resizing entirely. Same-format files are passed through without re-encoding — zero quality loss.</p>
 
     <h2>GUI (Windows)</h2>
     <div class="screenshots">
