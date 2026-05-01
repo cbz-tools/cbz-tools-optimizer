@@ -1,5 +1,5 @@
 [package]
-name = "cbz-image-optimizer-gui"
+name = "cbz-tools-optimizer-gui"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -10,7 +10,7 @@ name = "cbz-opt-gui"
 path = "src/main.rs"
 
 [dependencies]
-cbz-image-optimizer-core = { path = "../core" }
+cbz-tools-optimizer-core = { path = "../core" }
 anyhow.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -39,5 +39,5 @@ winapi = { version = "0.3", features = ["winuser"] }
 # Windows: suppress console window in release builds
 [target.'cfg(windows)']
 [package.metadata.winres]
-FileDescription = "CBZ Image Optimizer"
-ProductName = "CBZ Image Optimizer"
+FileDescription = "CBZ Optimizer"
+ProductName = "CBZ Optimizer"

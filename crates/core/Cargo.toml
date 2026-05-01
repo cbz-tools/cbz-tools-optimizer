@@ -1,5 +1,5 @@
 [package]
-name = "cbz-image-optimizer-core"
+name = "cbz-tools-optimizer-core"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

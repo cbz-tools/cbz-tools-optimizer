@@ -1,5 +1,5 @@
 [package]
-name = "cbz-image-optimizer-cli"
+name = "cbz-tools-optimizer-cli"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -10,7 +10,7 @@ name = "cbz-opt"
 path = "src/main.rs"
 
 [dependencies]
-cbz-image-optimizer-core = { path = "../core", features = ["clap"] }
+cbz-tools-optimizer-core = { path = "../core", features = ["clap"] }
 anyhow.workspace = true
 log.workspace = true
 env_logger.workspace = true
