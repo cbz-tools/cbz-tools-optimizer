@@ -13,27 +13,27 @@ authors = ["cbz-tools"]
 license = "MIT"
 repository = "https://github.com/cbz-tools/cbz-image-optimizer"
 
-# debugビルドでも依存クレートはrelease最適化を適用（画像処理の速度に直結）
+# Apply release optimizations to dependencies even in dev builds (critical for image processing speed)
 [profile.dev.package."*"]
 opt-level = 3
 
-# releaseビルドはLTO有効化でさらに高速化
+# Enable LTO for release builds for further speed gains
 [profile.release]
 lto = "thin"
 
 [workspace.dependencies]
-# 画像処理
+# Image processing
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "avif", "bmp", "tiff", "gif"] }
-# 並列処理
+# Parallelism
 rayon = "1.10"
 # ZIP
 zip = { version = "2.2", default-features = false, features = ["deflate"] }
-# エラー処理
+# Error handling
 anyhow = "1.0"
 thiserror = "1.0"
-# シリアライズ（設定保存）
+# Serialization (config persistence)
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-# ログ
+# Logging
 log = "0.4"
 env_logger = "0.11"

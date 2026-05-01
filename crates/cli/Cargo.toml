@@ -6,7 +6,7 @@ authors.workspace = true
 license.workspace = true
 
 [[bin]]
-name = "cbz-image-optimizer"
+name = "cbz-opt"
 path = "src/main.rs"
 
 [dependencies]
@@ -16,7 +16,7 @@ log.workspace = true
 env_logger.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-# CLI引数パース
+# CLI argument parsing
 clap = { version = "4", features = ["derive"] }
-# ログファイルのタイムスタンプ生成
+# Timestamp generation for log files
 chrono = "0.4"

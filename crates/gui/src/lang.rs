@@ -35,6 +35,7 @@ pub struct Strings {
     pub bulk_add_ok: &'static str,
     pub reset_defaults: &'static str,
     pub progress: &'static str,
+    pub lang_label: &'static str,
 }
 
 pub fn strings(lang: &Lang) -> Strings {
@@ -42,7 +43,7 @@ pub fn strings(lang: &Lang) -> Strings {
         Lang::En => Strings {
             app_title: "CBZ Image Optimizer",
             settings: "Settings",
-            start: "▶ Start",
+            start: "Start",
             clear: "Clear",
             remove: "Remove",
             add_files: "Add Files...",
@@ -70,11 +71,12 @@ pub fn strings(lang: &Lang) -> Strings {
             bulk_add_ok: "Add",
             reset_defaults: "Reset to defaults",
             progress: "{current}/{total} files",
+            lang_label: "Language",
         },
         Lang::Zh => Strings {
             app_title: "CBZ 图像优化器",
             settings: "设置",
-            start: "▶ 开始",
+            start: "开始",
             clear: "清空",
             remove: "删除",
             add_files: "添加文件...",
@@ -102,11 +104,12 @@ pub fn strings(lang: &Lang) -> Strings {
             bulk_add_ok: "添加",
             reset_defaults: "恢复默认值",
             progress: "{current}/{total} 个文件",
+            lang_label: "语言",
         },
         Lang::Ja => Strings {
             app_title: "CBZ 画像最適化ツール",
             settings: "設定",
-            start: "▶ 開始",
+            start: "開始",
             clear: "クリア",
             remove: "削除",
             add_files: "ファイル追加...",
@@ -134,6 +137,7 @@ pub fn strings(lang: &Lang) -> Strings {
             bulk_add_ok: "追加",
             reset_defaults: "デフォルトに戻す",
             progress: "{current}/{total} ファイル",
+            lang_label: "言語",
         },
     }
 }

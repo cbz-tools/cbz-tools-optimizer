@@ -6,7 +6,7 @@ authors.workspace = true
 license.workspace = true
 
 [[bin]]
-name = "cbz-image-optimizer-gui"
+name = "cbz-opt-gui"
 path = "src/main.rs"
 
 [dependencies]
@@ -16,24 +16,27 @@ serde.workspace = true
 serde_json.workspace = true
 log.workspace = true
 env_logger.workspace = true
-# GUI フレームワーク
+# GUI framework
 eframe = { version = "0.29", features = ["default"] }
 egui = "0.29"
-# GUIからCLIへの橋渡し（チャンネル）
+# Channel bridge between GUI and processing thread
 crossbeam-channel = "0.5"
-# 設定保存
+# Config persistence
 toml = "0.8"
-# ファイルダイアログ
+# File dialog
 rfd = "0.15"
+
+image = { version = "0.25", default-features = false, features = ["png"] }
+egui_material_icons = "0.1.0"
 
 [target.'cfg(windows)'.build-dependencies]
 winres = "0.1"
 
-# Windows: コンソール非表示
+# Windows: hide the console window
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["winuser"] }
 
-# Windows リリースビルドでコンソール窓を出さない
+# Windows: suppress console window in release builds
 [target.'cfg(windows)']
 [package.metadata.winres]
 FileDescription = "CBZ Image Optimizer"

@@ -22,6 +22,10 @@ use cbz_image_optimizer_core::{
 };
 use crossbeam_channel::{unbounded, Receiver};
 use eframe::egui;
+use egui_material_icons::icons::{
+    ICON_CLEAR_ALL, ICON_CONTENT_PASTE, ICON_FOLDER_OPEN,
+    ICON_NOTE_ADD, ICON_PLAY_ARROW, ICON_REMOVE, ICON_SETTINGS,
+};
 
 // ---------------------------------------------------------------------------
 // Font & style setup
@@ -29,6 +33,16 @@ use eframe::egui;
 
 fn setup_fonts(ctx: &egui::Context) {
     let mut fonts = egui::FontDefinitions::default();
+
+    // Material Icons font (fallback — icons live in the Unicode PUA range)
+    let mut icon_data = egui::FontData::from_static(egui_material_icons::FONT_DATA);
+    icon_data.tweak.y_offset_factor = 0.05;
+    fonts.font_data.insert("material-icons".to_owned(), icon_data);
+    fonts
+        .families
+        .get_mut(&egui::FontFamily::Proportional)
+        .unwrap()
+        .push("material-icons".to_owned());
 
     // Windows system fonts — try in priority order (Yu Gothic → Meiryo → MS Gothic → Noto CJK)
     let candidates = [
@@ -44,7 +58,7 @@ fn setup_fonts(ctx: &egui::Context) {
                 "cjk".to_owned(),
                 egui::FontData::from_owned(data).into(),
             );
-            // Insert as primary font so Latin and CJK characters use the same typeface
+            // CJK font has highest priority so Latin and CJK share the same typeface
             fonts
                 .families
                 .entry(egui::FontFamily::Proportional)
@@ -76,9 +90,45 @@ fn setup_style(ctx: &egui::Context) {
     ctx.set_style(style);
 }
 
+/// Build a button label that renders the icon and text side-by-side at different sizes.
+/// Material Symbols glyphs occupy ~60-70% of the em square, so the icon font size
+/// must be set larger than the text size to achieve a visually matching height.
+fn btn_label(icon: &str, label: &str) -> egui::text::LayoutJob {
+    let color = egui::Color32::from_gray(20);
+    let mut job = egui::text::LayoutJob::default();
+    job.append(
+        icon,
+        0.0,
+        egui::TextFormat {
+            font_id: egui::FontId::proportional(20.0),
+            color,
+            valign: egui::Align::Center,
+            ..Default::default()
+        },
+    );
+    job.append(
+        &format!("  {label}"),
+        0.0,
+        egui::TextFormat {
+            font_id: egui::FontId::proportional(13.0),
+            color,
+            valign: egui::Align::Center,
+            ..Default::default()
+        },
+    );
+    job
+}
+
 // ---------------------------------------------------------------------------
 // main
 // ---------------------------------------------------------------------------
+
+fn load_icon() -> egui::viewport::IconData {
+    let bytes = include_bytes!("../assets/icon.png");
+    let image = image::load_from_memory(bytes).expect("icon load failed").into_rgba8();
+    let (width, height) = image.dimensions();
+    egui::viewport::IconData { rgba: image.into_raw(), width, height }
+}
 
 fn main() -> eframe::Result<()> {
     // Load config early to restore window position before creating the viewport.
@@ -88,7 +138,8 @@ fn main() -> eframe::Result<()> {
     let mut viewport = egui::ViewportBuilder::default()
         .with_title("CBZ Image Optimizer")
         .with_inner_size([700.0, 540.0])
-        .with_drag_and_drop(true);
+        .with_drag_and_drop(true)
+        .with_icon(load_icon());
 
     if let (Some(x), Some(y)) = (startup_config.window_x, startup_config.window_y) {
         viewport = viewport.with_position(egui::Pos2::new(x as f32, y as f32));
@@ -433,52 +484,15 @@ impl eframe::App for App {
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     // Settings button
-                    if ui.button("⚙").clicked() {
+                    if ui.button(egui::RichText::new(ICON_SETTINGS).size(20.0)).clicked() {
                         self.settings_draft = self.config.clone();
                         self.show_settings = true;
                     }
 
                     ui.separator();
 
-                    // Language selector
-                    let lang_label = match &self.lang {
-                        Lang::En => "En",
-                        Lang::Zh => "中文",
-                        Lang::Ja => "日本語",
-                    };
-                    egui::ComboBox::from_id_salt("lang_combo")
-                        .selected_text(lang_label)
-                        .show_ui(ui, |ui| {
-                            if ui
-                                .selectable_label(matches!(&self.lang, Lang::En), "En")
-                                .clicked()
-                            {
-                                self.lang = Lang::En;
-                                self.config.lang = "en".into();
-                                self.config.save();
-                            }
-                            if ui
-                                .selectable_label(matches!(&self.lang, Lang::Zh), "中文")
-                                .clicked()
-                            {
-                                self.lang = Lang::Zh;
-                                self.config.lang = "zh".into();
-                                self.config.save();
-                            }
-                            if ui
-                                .selectable_label(matches!(&self.lang, Lang::Ja), "日本語")
-                                .clicked()
-                            {
-                                self.lang = Lang::Ja;
-                                self.config.lang = "ja".into();
-                                self.config.save();
-                            }
-                        });
-
-                    ui.separator();
-
                     // Bulk add menu item
-                    if ui.button("📋 Bulk Add").clicked() {
+                    if ui.button(btn_label(ICON_CONTENT_PASTE, "Bulk Add")).clicked() {
                         self.show_bulk_add = true;
                     }
                 });
@@ -536,14 +550,30 @@ impl eframe::App for App {
             ui.horizontal(|ui| {
                 let has_pending = self.files.iter().any(|e| e.status == FileStatus::Pending);
                 let can_start = !is_running && has_pending;
-                if ui
-                    .add_enabled(
-                        can_start,
-                        egui::Button::new(egui::RichText::new(s.start).size(16.0))
-                            .min_size(egui::vec2(120.0, 40.0)),
+                let start_clicked = ui.scope(|ui| {
+                    ui.set_enabled(can_start);
+                    ui.add_sized(
+                        [140.0, 40.0],
+                        egui::Button::new({
+                            let color = egui::Color32::from_gray(20);
+                            let mut job = egui::text::LayoutJob::default();
+                            job.append(ICON_PLAY_ARROW, 0.0, egui::TextFormat {
+                                font_id: egui::FontId::proportional(28.0),
+                                color,
+                                valign: egui::Align::Center,
+                                ..Default::default()
+                            });
+                            job.append(&format!("  {}", s.start), 0.0, egui::TextFormat {
+                                font_id: egui::FontId::proportional(13.0),
+                                color,
+                                valign: egui::Align::Center,
+                                ..Default::default()
+                            });
+                            job
+                        }),
                     )
-                    .clicked()
-                {
+                }).inner.clicked();
+                if start_clicked {
                     self.start_processing(ctx);
                 }
 
@@ -639,9 +669,12 @@ impl eframe::App for App {
             ui.separator();
 
             // Button row
-            ui.horizontal(|ui| {
+            ui.horizontal_top(|ui| {
                 // Add Files
-                if ui.button(s.add_files).clicked() {
+                if ui.add_sized(
+                    [0.0, 28.0],
+                    egui::Button::new(btn_label(ICON_NOTE_ADD, s.add_files)),
+                ).clicked() {
                     if let Some(paths) = rfd::FileDialog::new()
                         .add_filter("ZIP/CBZ", &["zip", "cbz"])
                         .pick_files()
@@ -653,20 +686,24 @@ impl eframe::App for App {
                 }
 
                 // Add Folder
-                if ui.button(s.add_folder).clicked() {
+                if ui.add_sized(
+                    [0.0, 28.0],
+                    egui::Button::new(btn_label(ICON_FOLDER_OPEN, s.add_folder)),
+                ).clicked() {
                     if let Some(folder) = rfd::FileDialog::new().pick_folder() {
                         self.add_entry(folder);
                     }
                 }
 
                 // Remove selected
-                if ui
-                    .add_enabled(
-                        !is_running && self.selected.is_some(),
-                        egui::Button::new(s.remove),
+                let remove_clicked = ui.scope(|ui| {
+                    ui.set_enabled(!is_running && self.selected.is_some());
+                    ui.add_sized(
+                        [0.0, 28.0],
+                        egui::Button::new(btn_label(ICON_REMOVE, s.remove)),
                     )
-                    .clicked()
-                {
+                }).inner.clicked();
+                if remove_clicked {
                     if let Some(i) = self.selected.take() {
                         if i < self.files.len() {
                             self.files.remove(i);
@@ -675,10 +712,14 @@ impl eframe::App for App {
                 }
 
                 // Clear
-                if ui
-                    .add_enabled(!is_running, egui::Button::new(s.clear))
-                    .clicked()
-                {
+                let clear_clicked = ui.scope(|ui| {
+                    ui.set_enabled(!is_running);
+                    ui.add_sized(
+                        [0.0, 28.0],
+                        egui::Button::new(btn_label(ICON_CLEAR_ALL, s.clear)),
+                    )
+                }).inner.clicked();
+                if clear_clicked {
                     self.files.clear();
                     self.selected = None;
                 }
@@ -703,6 +744,22 @@ impl eframe::App for App {
                         .spacing([8.0, 4.0])
                         .show(ui, |ui| {
                             let s2 = strings(&self.lang);
+
+                            // Language
+                            let lang_display = match d.lang.as_str() {
+                                "zh" => "中文",
+                                "ja" => "日本語",
+                                _ => "En",
+                            };
+                            ui.label(s2.lang_label);
+                            egui::ComboBox::from_id_salt("lang_combo")
+                                .selected_text(lang_display)
+                                .show_ui(ui, |ui| {
+                                    ui.selectable_value(&mut d.lang, "en".into(), "En");
+                                    ui.selectable_value(&mut d.lang, "zh".into(), "中文");
+                                    ui.selectable_value(&mut d.lang, "ja".into(), "日本語");
+                                });
+                            ui.end_row();
 
                             // Preset (disabled when convert_only)
                             ui.label(s2.preset_label);
@@ -824,6 +881,11 @@ impl eframe::App for App {
                     ui.horizontal(|ui| {
                         if ui.button("OK").clicked() {
                             self.config = self.settings_draft.clone();
+                            self.lang = match self.config.lang.as_str() {
+                                "zh" => Lang::Zh,
+                                "ja" => Lang::Ja,
+                                _ => Lang::En,
+                            };
                             self.config.save();
                             self.show_settings = false;
                         }

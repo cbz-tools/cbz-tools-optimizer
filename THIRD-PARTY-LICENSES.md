@@ -78,3 +78,14 @@ This software includes the following open-source libraries.
 - **Version:** 0.3
 - **License:** MIT / Apache-2.0
 - **Repository:** https://github.com/retep998/winapi-rs
+
+## egui_material_icons
+- **Version:** 0.1.0
+- **License:** MIT
+- **Repository:** https://github.com/lucasmerlin/hello_egui
+
+## Material Symbols (font)
+- **Version:** —
+- **License:** Apache-2.0
+- **Repository:** https://github.com/google/material-design-icons
+- **Note:** Bundled inside egui_material_icons (`MaterialSymbolsRounded_Filled-Regular.ttf`)
