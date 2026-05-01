@@ -32,22 +32,22 @@ jobs:
       - name: Build CLI (release)
         env:
           CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER: link.exe
-        run: cargo build --release --target x86_64-pc-windows-msvc -p cbz-image-optimizer-cli
+        run: cargo build --release --target x86_64-pc-windows-msvc -p cbz-tools-optimizer-cli
 
       - name: Build GUI (release)
         env:
           CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER: link.exe
-        run: cargo build --release --target x86_64-pc-windows-msvc -p cbz-image-optimizer-gui
+        run: cargo build --release --target x86_64-pc-windows-msvc -p cbz-tools-optimizer-gui
 
       - name: Package artifacts
         shell: pwsh
         run: |
           $tag = "${{ github.ref_name }}"
-          $dir = "cbz-image-optimizer-$tag-windows-x64"
+          $dir = "cbz-tools-optimizer-$tag-windows-x64"
           New-Item -ItemType Directory -Path $dir
 
-          Copy-Item target/x86_64-pc-windows-msvc/release/cbz-image-optimizer.exe     $dir/
-          Copy-Item target/x86_64-pc-windows-msvc/release/cbz-image-optimizer-gui.exe $dir/
+          Copy-Item target/x86_64-pc-windows-msvc/release/cbz-opt.exe     $dir/
+          Copy-Item target/x86_64-pc-windows-msvc/release/cbz-opt-gui.exe $dir/
           Copy-Item README.md  $dir/
           Copy-Item LICENSE    $dir/
 
@@ -81,14 +81,14 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build CLI
-        run: cargo build --release -p cbz-image-optimizer-cli
+        run: cargo build --release -p cbz-tools-optimizer-cli
 
       - name: Package
         run: |
           tag="${{ github.ref_name }}"
-          dir="cbz-image-optimizer-${tag}-linux-x64"
+          dir="cbz-tools-optimizer-${tag}-linux-x64"
           mkdir "$dir"
-          cp target/release/cbz-image-optimizer "$dir/"
+          cp target/release/cbz-opt "$dir/"
           cp README.md LICENSE "$dir/"
           tar czf "${dir}.tar.gz" "$dir"
 
@@ -116,14 +116,14 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build CLI
-        run: cargo build --release -p cbz-image-optimizer-cli
+        run: cargo build --release -p cbz-tools-optimizer-cli
 
       - name: Package
         run: |
           tag="${{ github.ref_name }}"
-          dir="cbz-image-optimizer-${tag}-macos-x64"
+          dir="cbz-tools-optimizer-${tag}-macos-x64"
           mkdir "$dir"
-          cp target/release/cbz-image-optimizer "$dir/"
+          cp target/release/cbz-opt "$dir/"
           cp README.md LICENSE "$dir/"
           tar czf "${dir}.tar.gz" "$dir"
 
