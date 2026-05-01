@@ -42,9 +42,9 @@
     <h1>cbz-tools-optimizer</h1>
     <p>High-performance CBZ optimizer built in Rust — batch resize, compress, and convert images (JPEG/PNG/WebP/AVIF) for Kindle and e-readers, fully offline.</p>
     <div class="dl-buttons">
-      <a class="btn-dl" href="https://github.com/cbz-tools/cbz-tools-optimizer/releases/latest/download/cbz-tools-optimizer-v0.1.1-windows-x64.zip">⬇ Download for Windows</a>
-      <a class="btn-dl" href="https://github.com/cbz-tools/cbz-tools-optimizer/releases/latest/download/cbz-tools-optimizer-v0.1.1-linux-x64.tar.gz">⬇ Download for Linux</a>
-      <a class="btn-dl" href="https://github.com/cbz-tools/cbz-tools-optimizer/releases/latest/download/cbz-tools-optimizer-v0.1.1-macos-x64.tar.gz">⬇ Download for macOS</a>
+      <a id="dl-windows" class="btn-dl" href="https://github.com/cbz-tools/cbz-tools-optimizer/releases/latest">⬇ Download for Windows</a>
+      <a id="dl-linux" class="btn-dl" href="https://github.com/cbz-tools/cbz-tools-optimizer/releases/latest">⬇ Download for Linux</a>
+      <a id="dl-macos" class="btn-dl" href="https://github.com/cbz-tools/cbz-tools-optimizer/releases/latest">⬇ Download for macOS</a>
     </div>
     <p style="margin-top:12px;font-size:0.85rem;color:#adbac7;"><a class="btn btn-outline" style="font-size:0.85rem;padding:6px 14px;" href="https://github.com/cbz-tools/cbz-tools-optimizer">View on GitHub</a></p>
   </header>
@@ -150,6 +150,21 @@ cbz-opt --preset ipad --output-format webp input.cbz</code></pre>
     <h2>License</h2>
     <p>MIT — free to use, modify, and distribute.</p>
   </main>
+
+  <script>
+    fetch('https://api.github.com/repos/cbz-tools/cbz-tools-optimizer/releases/latest')
+      .then(r => r.json())
+      .then(data => {
+        var assets = data.assets || [];
+        assets.forEach(function(a) {
+          var n = a.name;
+          if (n.indexOf('windows') !== -1) document.getElementById('dl-windows').href = a.browser_download_url;
+          else if (n.indexOf('linux') !== -1) document.getElementById('dl-linux').href = a.browser_download_url;
+          else if (n.indexOf('macos') !== -1) document.getElementById('dl-macos').href = a.browser_download_url;
+        });
+      })
+      .catch(function() {});
+  </script>
 
   <footer>
     <p>
