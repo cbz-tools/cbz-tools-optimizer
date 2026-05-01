@@ -4,7 +4,7 @@ use std::time::Instant;
 
 use anyhow::Result;
 use clap::Parser;
-use cbz_image_optimizer_core::{
+use cbz_tools_optimizer_core::{
     LogMode, OptimizeConfig, OutputFormat, OverwriteMode, ProgressEvent, SizePreset,
     format_elapsed, format_size,
     processor::process_zips,

@@ -16,7 +16,7 @@ use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 
-use cbz_image_optimizer_core::{
+use cbz_tools_optimizer_core::{
     LogMode, OptimizeConfig, OutputFormat, OverwriteMode, ProgressEvent, SizePreset,
     format_elapsed, format_size,
 };
@@ -351,7 +351,7 @@ impl App {
             let ctx_final = ctx2.clone();
             let t0 = std::time::Instant::now();
 
-            cbz_image_optimizer_core::processor::process_zips(
+            cbz_tools_optimizer_core::processor::process_zips(
                 &paths,
                 &config,
                 move |event| {
