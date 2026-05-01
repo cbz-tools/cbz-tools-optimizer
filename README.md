@@ -1,6 +1,6 @@
-# cbz-image-optimizer
+# cbz-tools-optimizer
 
-Bulk-resize images inside ZIP/CBZ archives — significantly reduce file size with parallel processing.  
+High-performance CBZ optimizer built in Rust — batch resize, compress, and convert images (JPEG/PNG/WebP/AVIF) for Kindle and e-readers, fully offline.  
 CLI for Windows / Linux / macOS. Windows GUI included.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -9,23 +9,24 @@ CLI for Windows / Linux / macOS. Windows GUI included.
 
 ## Download
 
-Download the latest release from [Releases](https://github.com/cbz-tools/cbz-image-optimizer/releases).
+Download the latest release from [Releases](https://github.com/cbz-tools/cbz-tools-optimizer/releases).
 
 | Archive | Contents |
 |---|---|
-| `cbz-image-optimizer-vX.Y.Z-windows-x64.zip` | `cbz-image-optimizer.exe` (CLI) + `cbz-image-optimizer-gui.exe` (GUI) |
-| `cbz-image-optimizer-vX.Y.Z-linux-x64.tar.gz` | `cbz-image-optimizer` (CLI) |
-| `cbz-image-optimizer-vX.Y.Z-macos-x64.tar.gz` | `cbz-image-optimizer` (CLI) |
+| `cbz-tools-optimizer-vX.Y.Z-windows-x64.zip` | `cbz-opt.exe` (CLI) + `cbz-opt-gui.exe` (GUI) |
+| `cbz-tools-optimizer-vX.Y.Z-linux-x64.tar.gz` | `cbz-opt` (CLI) |
+| `cbz-tools-optimizer-vX.Y.Z-macos-x64.tar.gz` | `cbz-opt` (CLI) |
 
 Extract the archive and run the binary directly — no installation required.
 
 ---
 
-## Why cbz-image-optimizer?
+## Why cbz-tools-optimizer?
 
 | | |
 |---|---|
-| 📦 **Storage savings** | Significantly reduce file size by resizing images to your target resolution |
+| 📦 **Storage savings** | Significantly reduce file size — real-world result: **9.0 GB → 647.6 MB (-93%)** in 1m 35s |
+| 🔄 **Format conversion** | Convert JPEG / PNG / WebP / AVIF in bulk — resize and convert in a single pass |
 | ⚡ **Speed** | Parallel processing across ZIPs and images via rayon |
 | 🖥️ **Cross-platform** | Windows / Linux / macOS — single binary, no install |
 | 🎯 **Device-ready presets** | iPad, Kindle, 4K and more — one flag to optimize for your device |
@@ -36,22 +37,42 @@ Extract the archive and run the binary directly — no installation required.
 
 ## CLI Usage
 
+### Resize
+
 ```bash
 # Basic (default: ipad preset 2048×1536, JPEG quality 85)
-cbz-image-optimizer input.cbz
+cbz-opt input.cbz
 
 # Multiple files
-cbz-image-optimizer *.zip
+cbz-opt *.zip
 
-# With options
-cbz-image-optimizer --preset kindle --quality 80 --suffix _small *.cbz
+# Kindle preset
+cbz-opt --preset kindle --quality 80 --suffix _small *.cbz
 
 # Custom size
-cbz-image-optimizer --preset custom --max-width 1280 --max-height 720 input.zip
+cbz-opt --preset custom --max-width 1280 --max-height 720 input.zip
 
 # Specify output directory
-cbz-image-optimizer --output-dir ./output input.cbz
+cbz-opt --output-dir ./output input.cbz
 ```
+
+### Format Conversion
+
+```bash
+# Convert all images to WebP (no resize)
+cbz-opt --output-format webp --convert-only input.cbz
+
+# Convert to AVIF for maximum compression (no resize)
+cbz-opt --output-format avif --convert-only *.cbz
+
+# Resize AND convert to WebP in one pass
+cbz-opt --preset ipad --output-format webp input.cbz
+
+# Convert PNG to JPEG (no resize)
+cbz-opt --output-format jpeg --convert-only input.cbz
+```
+
+> **`--convert-only`**: skips resizing entirely. Same-format files are passed through without re-encoding — zero quality loss.
 
 ### Options
 
@@ -108,7 +129,7 @@ AVIF is supported as **output only** (`--output-format avif`). AVIF files inside
 
 ## GUI Usage
 
-1. Launch `cbz-image-optimizer-gui.exe`
+1. Launch `cbz-opt-gui.exe`
 2. Drag and drop ZIP/CBZ files or folders onto the window (or use **Add Files…** / **Add Folder…**)
 3. Configure options via the **⚙** button and click **▶ Start**
 4. A completion summary is shown next to the Start button when processing finishes
@@ -118,9 +139,9 @@ AVIF is supported as **output only** (`--output-format avif`). AVIF files inside
 | ![GUI file list](docs/screenshots/gui-filelist.png) | ![GUI done](docs/screenshots/gui-done.png) |
 
 **Notes:**
-- `cbz-image-optimizer.exe` is **not** required alongside the GUI — image processing is built in
+- `cbz-opt.exe` is **not** required alongside the GUI — image processing is built in
 - Supports English / 中文 / 日本語 (language selector in the menu bar)
-- Settings are saved automatically to `cbz-image-optimizer-gui.toml` in the same folder
+- Settings are saved automatically to `cbz-opt-gui.toml` in the same folder
 
 ---
 
@@ -134,18 +155,18 @@ The MSVC linker path is pre-configured in `.cargo/config.toml` — no Developer 
 # All crates
 cargo build --release
 
-# CLI only  →  produces cbz-image-optimizer(.exe)
-cargo build --release -p cbz-image-optimizer-cli
+# CLI only  →  produces cbz-opt(.exe)
+cargo build --release -p cbz-tools-optimizer-cli
 
-# GUI only (Windows)  →  produces cbz-image-optimizer-gui.exe
-cargo build --release -p cbz-image-optimizer-gui
+# GUI only (Windows)  →  produces cbz-opt-gui.exe
+cargo build --release -p cbz-tools-optimizer-gui
 ```
 
 ---
 
 ## Contributing
 
-Bug reports and feature requests are welcome via [GitHub Issues](https://github.com/cbz-tools/cbz-image-optimizer/issues).  
+Bug reports and feature requests are welcome via [GitHub Issues](https://github.com/cbz-tools/cbz-tools-optimizer/issues).  
 Please use the provided issue templates.
 
 ---
@@ -157,14 +178,14 @@ Multiple ZIP/CBZ files
   └── rayon::par_iter()   ← parallel across ZIPs
         └── each ZIP entry
               └── rayon::par_iter()   ← parallel across images
-                    └── resize_exact() with CatmullRom filter
+                    └── resize / convert with CatmullRom filter
 ```
 
 - Images already within the size limit are passed through without re-encoding
 - Each ZIP is processed independently; one failure does not abort others
 - Default thread count is **half of logical CPUs** to avoid saturating the system (override with `--threads N`)
 - Output file conflict is controlled by `--overwrite-mode` (default: skip existing files)
-- A log file (`cbz-image-optimizer_YYYYMMDD_HHMMSS.log`) is written when `--log-mode both` or `file` is specified
+- A log file (`cbz-opt_YYYYMMDD_HHMMSS.log`) is written when `--log-mode both` or `file` is specified
 - On completion, total file size savings and elapsed time are reported
 
 ---
@@ -184,4 +205,3 @@ See [THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md).
 ## License
 
 MIT — see [LICENSE](LICENSE).
-
