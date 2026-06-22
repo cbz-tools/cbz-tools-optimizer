@@ -11,7 +11,7 @@ version = "0.1.1"
 edition = "2021"
 authors = ["cbz-tools"]
 license = "MIT"
-repository = "https://github.com/cbz-tools/cbz-image-optimizer"
+repository = "https://github.com/cbz-tools/cbz-tools-optimizer"
 
 # Apply release optimizations to dependencies even in dev builds (critical for image processing speed)
 [profile.dev.package."*"]
