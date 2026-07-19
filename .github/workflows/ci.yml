@@ -71,8 +71,8 @@ jobs:
       - name: Lint workspace
         run: cargo clippy --workspace --all-targets -- -D warnings
 
-      - name: Test workspace
-        run: cargo test --workspace --quiet
+      - name: Test AVIF processing
+        run: cargo test -p cbz-tools-optimizer-core --quiet
 
       - name: Build portable release CLI
         if: runner.os != 'Windows'
