@@ -24,6 +24,24 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Cache Cargo registry and git dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-registry-git-${{ hashFiles('Cargo.toml', 'crates/**/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-registry-git-
+
+      - name: Cache build artifacts
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-target-${{ hashFiles('Cargo.toml', 'crates/**/Cargo.toml', '.github/workflows/ci.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-target-
+
       - name: Set up MSVC and dav1d
         if: runner.os == 'Windows'
         shell: pwsh
