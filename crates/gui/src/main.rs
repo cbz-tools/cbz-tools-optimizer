@@ -1,6 +1,6 @@
-//! cbz-image-optimizer GUI
+//! CBZ Optimizer GUI
 //!
-//! Calls cbz-image-optimizer-core directly (no CLI subprocess).
+//! Calls cbz-tools-optimizer-core directly (no CLI subprocess).
 //! Supports CJK fonts, enlarged text, and proper Done-removal from list.
 
 #![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
@@ -136,7 +136,7 @@ fn main() -> eframe::Result<()> {
     let startup_config = AppConfig::load();
 
     let mut viewport = egui::ViewportBuilder::default()
-        .with_title("CBZ Image Optimizer")
+        .with_title("CBZ Optimizer")
         .with_inner_size([700.0, 540.0])
         .with_drag_and_drop(true)
         .with_icon(load_icon());
@@ -150,7 +150,7 @@ fn main() -> eframe::Result<()> {
         ..Default::default()
     };
     eframe::run_native(
-        "CBZ Image Optimizer",
+        "CBZ Optimizer",
         options,
         Box::new(|cc| {
             setup_fonts(&cc.egui_ctx);
@@ -974,4 +974,3 @@ fn is_archive_ext(path: &Path) -> bool {
         "zip" | "cbz" | "ZIP" | "CBZ"
     )
 }
-

@@ -12,7 +12,7 @@ A clear and concise description of the bug.
 
 ## Steps to Reproduce
 
-1. Run `cbz-image-optimizer ...`
+1. Run `cbz-opt ...`
 2. Observe ...
 
 ## Expected Behavior

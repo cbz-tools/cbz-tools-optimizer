@@ -12,7 +12,7 @@ use cbz_tools_optimizer_core::{
 
 #[derive(Parser, Debug)]
 #[command(
-    name = "cbz-image-optimizer",
+    name = "cbz-opt",
     version,
     about = "Resize images inside ZIP/CBZ files — blazing fast with parallel processing",
     long_about = None,
@@ -75,8 +75,8 @@ struct Args {
     /// Log output mode:
     ///   cli    : console output only (default)
     ///   silent : no output
-    ///   both   : console + log file (cbz-image-optimizer_YYYYMMDD_HHMMSS.log)
-    ///   file   : log file only (cbz-image-optimizer_YYYYMMDD_HHMMSS.log)
+    ///   both   : console + log file (cbz-opt_YYYYMMDD_HHMMSS.log)
+    ///   file   : log file only (cbz-opt_YYYYMMDD_HHMMSS.log)
     #[arg(long, value_enum, default_value = "cli", verbatim_doc_comment)]
     log_mode: LogMode,
 
@@ -145,7 +145,7 @@ fn main() -> Result<()> {
         let is_jpeg_out = matches!(config.output_format, OutputFormat::Jpeg)
             || (matches!(config.output_format, OutputFormat::Original) && !config.convert_only);
         let (display_w, display_h) = config.preset.effective_dimensions(config.max_width, config.max_height);
-        eprintln!("cbz-image-optimizer  Processing {} file(s)", total);
+        eprintln!("cbz-opt  Processing {} file(s)", total);
         if config.convert_only {
             eprintln!(
                 "Settings: convert-only / format={:?}{}/ threads={}",
@@ -294,7 +294,7 @@ fn write_log(
     let now = chrono::Local::now();
     let timestamp = now.format("%Y%m%d_%H%M%S").to_string();
     let datetime_str = now.format("%Y-%m-%d %H:%M:%S").to_string();
-    let log_path = format!("cbz-image-optimizer_{}.log", timestamp);
+    let log_path = format!("cbz-opt_{}.log", timestamp);
 
     let (preset_name, (pw, ph)) = {
         let name = format!("{:?}", config.preset).to_lowercase();
@@ -306,7 +306,7 @@ fn write_log(
 
     let mut buf = String::new();
     buf.push_str("========================================\n");
-    buf.push_str("cbz-image-optimizer run log\n");
+    buf.push_str("cbz-opt run log\n");
     buf.push_str(&format!("Date: {}\n", datetime_str));
     buf.push_str("========================================\n");
     let is_jpeg_out = matches!(config.output_format, OutputFormat::Jpeg)
@@ -365,4 +365,3 @@ fn short_path(p: &str) -> &str {
         .and_then(|n| n.to_str())
         .unwrap_or(p)
 }
-

@@ -42,7 +42,7 @@ impl Default for AppConfig {
 fn config_path() -> PathBuf {
     let mut path = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("."));
     path.pop();
-    path.push("cbz-image-optimizer-gui.toml");
+    path.push("cbz-opt-gui.toml");
     path
 }
 

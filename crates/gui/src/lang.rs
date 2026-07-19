@@ -41,7 +41,7 @@ pub struct Strings {
 pub fn strings(lang: &Lang) -> Strings {
     match lang {
         Lang::En => Strings {
-            app_title: "CBZ Image Optimizer",
+            app_title: "CBZ Optimizer",
             settings: "Settings",
             start: "Start",
             clear: "Clear",
@@ -74,7 +74,7 @@ pub fn strings(lang: &Lang) -> Strings {
             lang_label: "Language",
         },
         Lang::Zh => Strings {
-            app_title: "CBZ 图像优化器",
+            app_title: "CBZ Optimizer",
             settings: "设置",
             start: "开始",
             clear: "清空",
@@ -107,7 +107,7 @@ pub fn strings(lang: &Lang) -> Strings {
             lang_label: "语言",
         },
         Lang::Ja => Strings {
-            app_title: "CBZ 画像最適化ツール",
+            app_title: "CBZ Optimizer",
             settings: "設定",
             start: "開始",
             clear: "クリア",
