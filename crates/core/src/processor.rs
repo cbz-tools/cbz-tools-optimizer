@@ -6,8 +6,8 @@ use anyhow::{Context, Result};
 use rayon::prelude::*;
 use zip::write::SimpleFileOptions;
 
-use crate::{OptimizeConfig, OverwriteMode, ProgressEvent};
 use crate::resize::{is_animated_webp, is_image, resize_image_bytes};
+use crate::{OptimizeConfig, OverwriteMode, ProgressEvent};
 
 /// Outcome of processing a single ZIP
 enum ZipOutcome {
@@ -69,7 +69,10 @@ where
                             input_bytes,
                             output_bytes,
                         });
-                        ZipOutcome::Done { input_bytes, output_bytes }
+                        ZipOutcome::Done {
+                            input_bytes,
+                            output_bytes,
+                        }
                     }
                     Ok(Ok(None)) => {
                         // ZipSkipped already emitted inside process_one_zip
@@ -94,17 +97,32 @@ where
             .collect()
     });
 
-    let succeeded = outcomes.iter().filter(|o| matches!(o, ZipOutcome::Done { .. })).count();
-    let skipped   = outcomes.iter().filter(|o| matches!(o, ZipOutcome::Skipped)).count();
-    let failed    = outcomes.iter().filter(|o| matches!(o, ZipOutcome::Failed)).count();
-    let total_input_bytes: u64 = outcomes.iter().map(|o| match o {
-        ZipOutcome::Done { input_bytes, .. } => *input_bytes,
-        _ => 0,
-    }).sum();
-    let total_output_bytes: u64 = outcomes.iter().map(|o| match o {
-        ZipOutcome::Done { output_bytes, .. } => *output_bytes,
-        _ => 0,
-    }).sum();
+    let succeeded = outcomes
+        .iter()
+        .filter(|o| matches!(o, ZipOutcome::Done { .. }))
+        .count();
+    let skipped = outcomes
+        .iter()
+        .filter(|o| matches!(o, ZipOutcome::Skipped))
+        .count();
+    let failed = outcomes
+        .iter()
+        .filter(|o| matches!(o, ZipOutcome::Failed))
+        .count();
+    let total_input_bytes: u64 = outcomes
+        .iter()
+        .map(|o| match o {
+            ZipOutcome::Done { input_bytes, .. } => *input_bytes,
+            _ => 0,
+        })
+        .sum();
+    let total_output_bytes: u64 = outcomes
+        .iter()
+        .map(|o| match o {
+            ZipOutcome::Done { output_bytes, .. } => *output_bytes,
+            _ => 0,
+        })
+        .sum();
 
     on_progress(ProgressEvent::AllDone {
         total_zips: outcomes.len(),
@@ -155,8 +173,7 @@ where
     let has_unsupported_anim = entries.iter().any(|e| match e {
         ZipEntry::File(name, data) => {
             let lower = name.to_lowercase();
-            lower.ends_with(".gif")
-                || (lower.ends_with(".webp") && is_animated_webp(data))
+            lower.ends_with(".gif") || (lower.ends_with(".webp") && is_animated_webp(data))
         }
         ZipEntry::Directory(_) => false,
     });
@@ -169,7 +186,10 @@ where
         return Ok(None);
     }
 
-    let image_count = entries.iter().filter(|e| matches!(e, ZipEntry::File(name, _) if is_image(name))).count();
+    let image_count = entries
+        .iter()
+        .filter(|e| matches!(e, ZipEntry::File(name, _) if is_image(name)))
+        .count();
     on_progress(ProgressEvent::ZipStarted {
         path: zip_path.display().to_string(),
         image_count,
@@ -264,7 +284,9 @@ fn resolve_output_path(input: &Path, config: &OptimizeConfig) -> Result<Option<P
             if !base_path.exists() {
                 return Ok(Some(base_path));
             }
-            let base_dir: &Path = config.output_dir.as_deref()
+            let base_dir: &Path = config
+                .output_dir
+                .as_deref()
                 .unwrap_or_else(|| input.parent().unwrap_or(Path::new(".")));
             for n in 1..=9999 {
                 let renamed = format!("{}{}({}).{}", stem, config.output_suffix, n, ext);

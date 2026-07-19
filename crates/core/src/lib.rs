@@ -68,14 +68,14 @@ pub enum SizePreset {
 impl SizePreset {
     pub fn dimensions(&self) -> Option<(u32, u32)> {
         match self {
-            Self::FullHd  => Some((1920, 1080)),
-            Self::Hd      => Some((1280, 720)),
-            Self::FourK   => Some((3840, 2160)),
+            Self::FullHd => Some((1920, 1080)),
+            Self::Hd => Some((1280, 720)),
+            Self::FourK => Some((3840, 2160)),
             Self::IpadPro => Some((2732, 2048)),
             Self::IpadAir => Some((2360, 1640)),
-            Self::Ipad    => Some((2048, 1536)),
-            Self::Kindle  => Some((1264, 1680)),
-            Self::Custom  => None,
+            Self::Ipad => Some((2048, 1536)),
+            Self::Kindle => Some((1264, 1680)),
+            Self::Custom => None,
         }
     }
 
@@ -117,7 +117,9 @@ pub struct OptimizeConfig {
 impl OptimizeConfig {
     /// Return effective (width, height) from preset or max_width/max_height
     pub fn effective_dimensions(&self) -> (u32, u32) {
-        self.preset.dimensions().unwrap_or((self.max_width, self.max_height))
+        self.preset
+            .dimensions()
+            .unwrap_or((self.max_width, self.max_height))
     }
 }
 
@@ -158,7 +160,12 @@ pub fn format_size(bytes: u64) -> String {
 /// Format elapsed seconds as e.g. "2m14s"
 pub fn format_elapsed(secs: u64) -> String {
     if secs >= 3600 {
-        format!("{}h{:02}m{:02}s", secs / 3600, (secs % 3600) / 60, secs % 60)
+        format!(
+            "{}h{:02}m{:02}s",
+            secs / 3600,
+            (secs % 3600) / 60,
+            secs % 60
+        )
     } else if secs >= 60 {
         format!("{}m{:02}s", secs / 60, secs % 60)
     } else {
@@ -173,13 +180,29 @@ pub enum ProgressEvent {
     /// ZIP processing started
     ZipStarted { path: String, image_count: usize },
     /// One image resized
-    ImageDone { zip_path: String, image_index: usize, total: usize },
+    ImageDone {
+        zip_path: String,
+        image_index: usize,
+        total: usize,
+    },
     /// ZIP processing done
-    ZipDone { path: String, output_path: String, input_bytes: u64, output_bytes: u64 },
+    ZipDone {
+        path: String,
+        output_path: String,
+        input_bytes: u64,
+        output_bytes: u64,
+    },
     /// ZIP skipped (e.g. contains animated WebP or GIF)
     ZipSkipped { path: String, reason: String },
     /// ZIP processing error
     ZipError { path: String, message: String },
     /// All done
-    AllDone { total_zips: usize, succeeded: usize, skipped: usize, failed: usize, total_input_bytes: u64, total_output_bytes: u64 },
+    AllDone {
+        total_zips: usize,
+        succeeded: usize,
+        skipped: usize,
+        failed: usize,
+        total_input_bytes: u64,
+        total_output_bytes: u64,
+    },
 }

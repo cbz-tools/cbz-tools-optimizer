@@ -1,0 +1,6 @@
+# Keep all tracked text files in LF format across platforms.
+* text=auto eol=lf
+
+# Never apply text normalization to raster assets.
+*.png binary
+*.ico binary

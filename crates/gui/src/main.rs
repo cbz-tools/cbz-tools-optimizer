@@ -12,19 +12,19 @@ use app_config::AppConfig;
 use lang::{strings, Lang};
 
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::thread;
 
 use cbz_tools_optimizer_core::{
-    LogMode, OptimizeConfig, OutputFormat, OverwriteMode, ProgressEvent, SizePreset,
-    format_elapsed, format_size,
+    format_elapsed, format_size, LogMode, OptimizeConfig, OutputFormat, OverwriteMode,
+    ProgressEvent, SizePreset,
 };
 use crossbeam_channel::{unbounded, Receiver};
 use eframe::egui;
 use egui_material_icons::icons::{
-    ICON_CLEAR_ALL, ICON_CONTENT_PASTE, ICON_FOLDER_OPEN,
-    ICON_NOTE_ADD, ICON_PLAY_ARROW, ICON_REMOVE, ICON_SETTINGS,
+    ICON_CLEAR_ALL, ICON_CONTENT_PASTE, ICON_FOLDER_OPEN, ICON_NOTE_ADD, ICON_PLAY_ARROW,
+    ICON_REMOVE, ICON_SETTINGS,
 };
 
 // ---------------------------------------------------------------------------
@@ -37,7 +37,9 @@ fn setup_fonts(ctx: &egui::Context) {
     // Material Icons font (fallback — icons live in the Unicode PUA range)
     let mut icon_data = egui::FontData::from_static(egui_material_icons::FONT_DATA);
     icon_data.tweak.y_offset_factor = 0.05;
-    fonts.font_data.insert("material-icons".to_owned(), icon_data);
+    fonts
+        .font_data
+        .insert("material-icons".to_owned(), icon_data);
     fonts
         .families
         .get_mut(&egui::FontFamily::Proportional)
@@ -54,10 +56,9 @@ fn setup_fonts(ctx: &egui::Context) {
 
     for path in &candidates {
         if let Ok(data) = std::fs::read(path) {
-            fonts.font_data.insert(
-                "cjk".to_owned(),
-                egui::FontData::from_owned(data).into(),
-            );
+            fonts
+                .font_data
+                .insert("cjk".to_owned(), egui::FontData::from_owned(data).into());
             // CJK font has highest priority so Latin and CJK share the same typeface
             fonts
                 .families
@@ -125,9 +126,15 @@ fn btn_label(icon: &str, label: &str) -> egui::text::LayoutJob {
 
 fn load_icon() -> egui::viewport::IconData {
     let bytes = include_bytes!("../assets/icon.png");
-    let image = image::load_from_memory(bytes).expect("icon load failed").into_rgba8();
+    let image = image::load_from_memory(bytes)
+        .expect("icon load failed")
+        .into_rgba8();
     let (width, height) = image.dimensions();
-    egui::viewport::IconData { rgba: image.into_raw(), width, height }
+    egui::viewport::IconData {
+        rgba: image.into_raw(),
+        width,
+        height,
+    }
 }
 
 fn main() -> eframe::Result<()> {
@@ -182,7 +189,11 @@ enum StatusUpdate {
     Done(PathBuf),
     Skipped(PathBuf, String),
     Error(PathBuf, String),
-    AllDone { elapsed: std::time::Duration, input_bytes: u64, output_bytes: u64 },
+    AllDone {
+        elapsed: std::time::Duration,
+        input_bytes: u64,
+        output_bytes: u64,
+    },
 }
 
 // ---------------------------------------------------------------------------
@@ -252,39 +263,42 @@ impl App {
 
     fn add_entry(&mut self, path: PathBuf) {
         if !self.files.iter().any(|e| e.path == path) {
-            self.files.push(FileEntry { path, status: FileStatus::Pending });
+            self.files.push(FileEntry {
+                path,
+                status: FileStatus::Pending,
+            });
         }
     }
 
     fn build_optimize_config(&self) -> OptimizeConfig {
         let preset = match self.config.preset.as_str() {
-            "full-hd"  => SizePreset::FullHd,
-            "hd"       => SizePreset::Hd,
-            "four-k"   => SizePreset::FourK,
+            "full-hd" => SizePreset::FullHd,
+            "hd" => SizePreset::Hd,
+            "four-k" => SizePreset::FourK,
             "ipad-pro" => SizePreset::IpadPro,
             "ipad-air" => SizePreset::IpadAir,
-            "kindle"   => SizePreset::Kindle,
-            "custom"   => SizePreset::Custom,
-            _          => SizePreset::Ipad,
+            "kindle" => SizePreset::Kindle,
+            "custom" => SizePreset::Custom,
+            _ => SizePreset::Ipad,
         };
         let output_format = match self.config.output_format.as_str() {
-            "png"      => OutputFormat::Png,
-            "webp"     => OutputFormat::Webp,
-            "avif"     => OutputFormat::Avif,
+            "png" => OutputFormat::Png,
+            "webp" => OutputFormat::Webp,
+            "avif" => OutputFormat::Avif,
             "original" => OutputFormat::Original,
-            _          => OutputFormat::Jpeg,
+            _ => OutputFormat::Jpeg,
         };
         let convert_only = self.config.convert_only;
         let overwrite_mode = match self.config.overwrite_mode.as_str() {
             "overwrite" => OverwriteMode::Overwrite,
-            "rename"    => OverwriteMode::Rename,
-            _           => OverwriteMode::Skip,
+            "rename" => OverwriteMode::Rename,
+            _ => OverwriteMode::Skip,
         };
         let log_mode = match self.config.log_mode.as_str() {
             "silent" => LogMode::Silent,
-            "both"   => LogMode::Both,
-            "file"   => LogMode::File,
-            _        => LogMode::Cli,
+            "both" => LogMode::Both,
+            "file" => LogMode::File,
+            _ => LogMode::Cli,
         };
         OptimizeConfig {
             preset,
@@ -325,10 +339,13 @@ impl App {
         expanded.sort();
         expanded.dedup();
 
-        self.files = expanded.into_iter().map(|p| FileEntry {
-            path: p,
-            status: FileStatus::Pending,
-        }).collect();
+        self.files = expanded
+            .into_iter()
+            .map(|p| FileEntry {
+                path: p,
+                status: FileStatus::Pending,
+            })
+            .collect();
 
         let total = self.files.len();
         if total == 0 {
@@ -351,38 +368,36 @@ impl App {
             let ctx_final = ctx2.clone();
             let t0 = std::time::Instant::now();
 
-            cbz_tools_optimizer_core::processor::process_zips(
-                &paths,
-                &config,
-                move |event| {
-                    let update = match event {
-                        ProgressEvent::ZipStarted { path, .. } => {
-                            Some(StatusUpdate::Processing(PathBuf::from(&path)))
-                        }
-                        ProgressEvent::ZipDone { path, .. } => {
-                            Some(StatusUpdate::Done(PathBuf::from(&path)))
-                        }
-                        ProgressEvent::ZipSkipped { path, reason } => {
-                            Some(StatusUpdate::Skipped(PathBuf::from(&path), reason))
-                        }
-                        ProgressEvent::ZipError { path, message } => {
-                            Some(StatusUpdate::Error(PathBuf::from(&path), message))
-                        }
-                        ProgressEvent::AllDone { total_input_bytes, total_output_bytes, .. } => {
-                            Some(StatusUpdate::AllDone {
-                                elapsed: t0.elapsed(),
-                                input_bytes: total_input_bytes,
-                                output_bytes: total_output_bytes,
-                            })
-                        }
-                        _ => None,
-                    };
-                    if let Some(u) = update {
-                        let _ = tx.send(u);
-                        ctx2.request_repaint();
+            cbz_tools_optimizer_core::processor::process_zips(&paths, &config, move |event| {
+                let update = match event {
+                    ProgressEvent::ZipStarted { path, .. } => {
+                        Some(StatusUpdate::Processing(PathBuf::from(&path)))
                     }
-                },
-            );
+                    ProgressEvent::ZipDone { path, .. } => {
+                        Some(StatusUpdate::Done(PathBuf::from(&path)))
+                    }
+                    ProgressEvent::ZipSkipped { path, reason } => {
+                        Some(StatusUpdate::Skipped(PathBuf::from(&path), reason))
+                    }
+                    ProgressEvent::ZipError { path, message } => {
+                        Some(StatusUpdate::Error(PathBuf::from(&path), message))
+                    }
+                    ProgressEvent::AllDone {
+                        total_input_bytes,
+                        total_output_bytes,
+                        ..
+                    } => Some(StatusUpdate::AllDone {
+                        elapsed: t0.elapsed(),
+                        input_bytes: total_input_bytes,
+                        output_bytes: total_output_bytes,
+                    }),
+                    _ => None,
+                };
+                if let Some(u) = update {
+                    let _ = tx.send(u);
+                    ctx2.request_repaint();
+                }
+            });
 
             running.store(false, Ordering::Relaxed);
             ctx_final.request_repaint();
@@ -441,16 +456,19 @@ impl eframe::App for App {
                                     e.status = FileStatus::Error(msg.clone());
                                 }
                             }
-                        } else if let Some(e) =
-                            self.files.iter_mut().find(|e| e.path == path)
-                        {
+                        } else if let Some(e) = self.files.iter_mut().find(|e| e.path == path) {
                             e.status = FileStatus::Error(msg);
                         }
                         let mut p = self.progress.lock().unwrap();
                         p.0 += 1;
                     }
-                    StatusUpdate::AllDone { elapsed, input_bytes, output_bytes } => {
-                        self.completion_msg = Some(format_completion(input_bytes, output_bytes, elapsed));
+                    StatusUpdate::AllDone {
+                        elapsed,
+                        input_bytes,
+                        output_bytes,
+                    } => {
+                        self.completion_msg =
+                            Some(format_completion(input_bytes, output_bytes, elapsed));
                     }
                 }
             }
@@ -484,7 +502,10 @@ impl eframe::App for App {
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     // Settings button
-                    if ui.button(egui::RichText::new(ICON_SETTINGS).size(20.0)).clicked() {
+                    if ui
+                        .button(egui::RichText::new(ICON_SETTINGS).size(20.0))
+                        .clicked()
+                    {
                         self.settings_draft = self.config.clone();
                         self.show_settings = true;
                     }
@@ -492,7 +513,10 @@ impl eframe::App for App {
                     ui.separator();
 
                     // Bulk add menu item
-                    if ui.button(btn_label(ICON_CONTENT_PASTE, "Bulk Add")).clicked() {
+                    if ui
+                        .button(btn_label(ICON_CONTENT_PASTE, "Bulk Add"))
+                        .clicked()
+                    {
                         self.show_bulk_add = true;
                     }
                 });
@@ -512,10 +536,7 @@ impl eframe::App for App {
             if self.config.convert_only {
                 ui.label(format!(
                     "{}  |  {}  {}{}",
-                    s.convert_only_label,
-                    s.format_label,
-                    self.config.output_format,
-                    quality_part,
+                    s.convert_only_label, s.format_label, self.config.output_format, quality_part,
                 ));
             } else {
                 ui.label(format!(
@@ -535,54 +556,62 @@ impl eframe::App for App {
 
             if is_running {
                 let (current, total) = *self.progress.lock().unwrap();
-                let frac = if total > 0 { current as f32 / total as f32 } else { 0.0 };
+                let frac = if total > 0 {
+                    current as f32 / total as f32
+                } else {
+                    0.0
+                };
                 let prog_text = s
                     .progress
                     .replace("{current}", &current.to_string())
                     .replace("{total}", &total.to_string());
-                ui.add(
-                    egui::ProgressBar::new(frac)
-                        .text(prog_text)
-                        .animate(true),
-                );
+                ui.add(egui::ProgressBar::new(frac).text(prog_text).animate(true));
             }
 
             ui.horizontal(|ui| {
                 let has_pending = self.files.iter().any(|e| e.status == FileStatus::Pending);
                 let can_start = !is_running && has_pending;
-                let start_clicked = ui.scope(|ui| {
-                    ui.set_enabled(can_start);
-                    ui.add_sized(
-                        [140.0, 40.0],
-                        egui::Button::new({
-                            let color = egui::Color32::from_gray(20);
-                            let mut job = egui::text::LayoutJob::default();
-                            job.append(ICON_PLAY_ARROW, 0.0, egui::TextFormat {
-                                font_id: egui::FontId::proportional(28.0),
-                                color,
-                                valign: egui::Align::Center,
-                                ..Default::default()
-                            });
-                            job.append(&format!("  {}", s.start), 0.0, egui::TextFormat {
-                                font_id: egui::FontId::proportional(13.0),
-                                color,
-                                valign: egui::Align::Center,
-                                ..Default::default()
-                            });
-                            job
-                        }),
-                    )
-                }).inner.clicked();
+                let start_clicked = ui
+                    .scope(|ui| {
+                        ui.set_enabled(can_start);
+                        ui.add_sized(
+                            [140.0, 40.0],
+                            egui::Button::new({
+                                let color = egui::Color32::from_gray(20);
+                                let mut job = egui::text::LayoutJob::default();
+                                job.append(
+                                    ICON_PLAY_ARROW,
+                                    0.0,
+                                    egui::TextFormat {
+                                        font_id: egui::FontId::proportional(28.0),
+                                        color,
+                                        valign: egui::Align::Center,
+                                        ..Default::default()
+                                    },
+                                );
+                                job.append(
+                                    &format!("  {}", s.start),
+                                    0.0,
+                                    egui::TextFormat {
+                                        font_id: egui::FontId::proportional(13.0),
+                                        color,
+                                        valign: egui::Align::Center,
+                                        ..Default::default()
+                                    },
+                                );
+                                job
+                            }),
+                        )
+                    })
+                    .inner
+                    .clicked();
                 if start_clicked {
                     self.start_processing(ctx);
                 }
 
                 if let Some(msg) = &self.completion_msg {
-                    ui.label(
-                        egui::RichText::new(msg).color(egui::Color32::from_rgb(80, 200, 80)),
-                    );
+                    ui.label(egui::RichText::new(msg).color(egui::Color32::from_rgb(80, 200, 80)));
                 }
-
             });
         });
 
@@ -592,9 +621,7 @@ impl eframe::App for App {
 
             if self.files.is_empty() {
                 ui.centered_and_justified(|ui| {
-                    ui.label(
-                        egui::RichText::new(s.drop_hint).color(egui::Color32::GRAY),
-                    );
+                    ui.label(egui::RichText::new(s.drop_hint).color(egui::Color32::GRAY));
                 });
             } else {
                 // File list table
@@ -612,9 +639,7 @@ impl eframe::App for App {
                                 ui.with_layout(
                                     egui::Layout::right_to_left(egui::Align::Center),
                                     |ui| {
-                                        ui.label(
-                                            egui::RichText::new(s.col_status).strong(),
-                                        );
+                                        ui.label(egui::RichText::new(s.col_status).strong());
                                     },
                                 );
                                 ui.end_row();
@@ -633,10 +658,9 @@ impl eframe::App for App {
                                     }
 
                                     let (status_text, color) = match &entry.status {
-                                        FileStatus::Pending => (
-                                            s.status_pending.to_string(),
-                                            egui::Color32::GRAY,
-                                        ),
+                                        FileStatus::Pending => {
+                                            (s.status_pending.to_string(), egui::Color32::GRAY)
+                                        }
                                         FileStatus::Processing => (
                                             s.status_processing.to_string(),
                                             egui::Color32::from_rgb(100, 180, 255),
@@ -671,10 +695,13 @@ impl eframe::App for App {
             // Button row
             ui.horizontal_top(|ui| {
                 // Add Files
-                if ui.add_sized(
-                    [0.0, 28.0],
-                    egui::Button::new(btn_label(ICON_NOTE_ADD, s.add_files)),
-                ).clicked() {
+                if ui
+                    .add_sized(
+                        [0.0, 28.0],
+                        egui::Button::new(btn_label(ICON_NOTE_ADD, s.add_files)),
+                    )
+                    .clicked()
+                {
                     if let Some(paths) = rfd::FileDialog::new()
                         .add_filter("ZIP/CBZ", &["zip", "cbz"])
                         .pick_files()
@@ -686,23 +713,29 @@ impl eframe::App for App {
                 }
 
                 // Add Folder
-                if ui.add_sized(
-                    [0.0, 28.0],
-                    egui::Button::new(btn_label(ICON_FOLDER_OPEN, s.add_folder)),
-                ).clicked() {
+                if ui
+                    .add_sized(
+                        [0.0, 28.0],
+                        egui::Button::new(btn_label(ICON_FOLDER_OPEN, s.add_folder)),
+                    )
+                    .clicked()
+                {
                     if let Some(folder) = rfd::FileDialog::new().pick_folder() {
                         self.add_entry(folder);
                     }
                 }
 
                 // Remove selected
-                let remove_clicked = ui.scope(|ui| {
-                    ui.set_enabled(!is_running && self.selected.is_some());
-                    ui.add_sized(
-                        [0.0, 28.0],
-                        egui::Button::new(btn_label(ICON_REMOVE, s.remove)),
-                    )
-                }).inner.clicked();
+                let remove_clicked = ui
+                    .scope(|ui| {
+                        ui.set_enabled(!is_running && self.selected.is_some());
+                        ui.add_sized(
+                            [0.0, 28.0],
+                            egui::Button::new(btn_label(ICON_REMOVE, s.remove)),
+                        )
+                    })
+                    .inner
+                    .clicked();
                 if remove_clicked {
                     if let Some(i) = self.selected.take() {
                         if i < self.files.len() {
@@ -712,13 +745,16 @@ impl eframe::App for App {
                 }
 
                 // Clear
-                let clear_clicked = ui.scope(|ui| {
-                    ui.set_enabled(!is_running);
-                    ui.add_sized(
-                        [0.0, 28.0],
-                        egui::Button::new(btn_label(ICON_CLEAR_ALL, s.clear)),
-                    )
-                }).inner.clicked();
+                let clear_clicked = ui
+                    .scope(|ui| {
+                        ui.set_enabled(!is_running);
+                        ui.add_sized(
+                            [0.0, 28.0],
+                            egui::Button::new(btn_label(ICON_CLEAR_ALL, s.clear)),
+                        )
+                    })
+                    .inner
+                    .clicked();
                 if clear_clicked {
                     self.files.clear();
                     self.selected = None;
@@ -772,11 +808,7 @@ impl eframe::App for App {
                                             "ipad", "ipad-air", "ipad-pro", "kindle", "hd",
                                             "full-hd", "four-k", "custom",
                                         ] {
-                                            ui.selectable_value(
-                                                &mut d.preset,
-                                                p.to_string(),
-                                                *p,
-                                            );
+                                            ui.selectable_value(&mut d.preset, p.to_string(), *p);
                                         }
                                     });
                             });
@@ -841,9 +873,7 @@ impl eframe::App for App {
 
                             // Threads
                             ui.label(s2.threads_label);
-                            ui.add(
-                                egui::DragValue::new(&mut d.threads).range(0..=256),
-                            );
+                            ui.add(egui::DragValue::new(&mut d.threads).range(0..=256));
                             ui.end_row();
 
                             // Overwrite Mode
@@ -867,11 +897,7 @@ impl eframe::App for App {
                                 .selected_text(&d.log_mode)
                                 .show_ui(ui, |ui| {
                                     for m in &["cli", "silent", "both", "file"] {
-                                        ui.selectable_value(
-                                            &mut d.log_mode,
-                                            m.to_string(),
-                                            *m,
-                                        );
+                                        ui.selectable_value(&mut d.log_mode, m.to_string(), *m);
                                     }
                                 });
                             ui.end_row();

@@ -61,10 +61,10 @@ pub fn resize_image_bytes(
     }
 
     let (fmt, ext) = match config.output_format {
-        OutputFormat::Jpeg     => (ImageFormat::Jpeg, ".jpg"),
-        OutputFormat::Png      => (ImageFormat::Png,  ".png"),
-        OutputFormat::Webp     => (ImageFormat::WebP, ".webp"),
-        OutputFormat::Avif     => (ImageFormat::Avif, ".avif"),
+        OutputFormat::Jpeg => (ImageFormat::Jpeg, ".jpg"),
+        OutputFormat::Png => (ImageFormat::Png, ".png"),
+        OutputFormat::Webp => (ImageFormat::WebP, ".webp"),
+        OutputFormat::Avif => (ImageFormat::Avif, ".avif"),
         OutputFormat::Original => {
             let f = output_format(entry_name);
             let e = original_ext(entry_name);
@@ -80,7 +80,7 @@ pub fn resize_image_bytes(
     let img = image::load_from_memory(data)?;
 
     let processed = if config.convert_only {
-        img  // skip resize entirely
+        img // skip resize entirely
     } else {
         resize_image(img, config)
     };

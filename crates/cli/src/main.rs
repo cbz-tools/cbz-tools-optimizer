@@ -3,12 +3,11 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use anyhow::Result;
-use clap::Parser;
 use cbz_tools_optimizer_core::{
-    LogMode, OptimizeConfig, OutputFormat, OverwriteMode, ProgressEvent, SizePreset,
-    format_elapsed, format_size,
-    processor::process_zips,
+    format_elapsed, format_size, processor::process_zips, LogMode, OptimizeConfig, OutputFormat,
+    OverwriteMode, ProgressEvent, SizePreset,
 };
+use clap::Parser;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -96,7 +95,7 @@ struct Args {
 struct LogEntry {
     status: &'static str, // "SUCCESS" / "SKIPPED" / "ERROR"
     input: String,
-    detail: String,       // output path, skip reason, or error message
+    detail: String, // output path, skip reason, or error message
 }
 
 fn main() -> Result<()> {
@@ -144,14 +143,24 @@ fn main() -> Result<()> {
         // (JPEG inputs in the archive may be re-encoded)
         let is_jpeg_out = matches!(config.output_format, OutputFormat::Jpeg)
             || (matches!(config.output_format, OutputFormat::Original) && !config.convert_only);
-        let (display_w, display_h) = config.preset.effective_dimensions(config.max_width, config.max_height);
+        let (display_w, display_h) = config
+            .preset
+            .effective_dimensions(config.max_width, config.max_height);
         eprintln!("cbz-opt  Processing {} file(s)", total);
         if config.convert_only {
             eprintln!(
                 "Settings: convert-only / format={:?}{}/ threads={}",
                 config.output_format,
-                if is_jpeg_out { format!(" / quality={} ", config.jpeg_quality) } else { " ".to_string() },
-                if config.threads == 0 { "auto (half of CPUs)".to_string() } else { config.threads.to_string() }
+                if is_jpeg_out {
+                    format!(" / quality={} ", config.jpeg_quality)
+                } else {
+                    " ".to_string()
+                },
+                if config.threads == 0 {
+                    "auto (half of CPUs)".to_string()
+                } else {
+                    config.threads.to_string()
+                }
             );
         } else {
             eprintln!(
@@ -160,8 +169,16 @@ fn main() -> Result<()> {
                 display_w,
                 display_h,
                 config.output_format,
-                if is_jpeg_out { format!(" / quality={} ", config.jpeg_quality) } else { " ".to_string() },
-                if config.threads == 0 { "auto (half of CPUs)".to_string() } else { config.threads.to_string() }
+                if is_jpeg_out {
+                    format!(" / quality={} ", config.jpeg_quality)
+                } else {
+                    " ".to_string()
+                },
+                if config.threads == 0 {
+                    "auto (half of CPUs)".to_string()
+                } else {
+                    config.threads.to_string()
+                }
             );
         }
         eprintln!("{}", "-".repeat(60));
@@ -181,15 +198,25 @@ fn main() -> Result<()> {
 
     let (succeeded, skipped, failed) = process_zips(&args.files, &config, move |event| {
         // Always capture AllDone stats so write_log can use them
-        if let ProgressEvent::AllDone { total_input_bytes, total_output_bytes, .. } = &event {
-            *completion_cb.lock().unwrap() =
-                (*total_input_bytes, *total_output_bytes, start_time.elapsed());
+        if let ProgressEvent::AllDone {
+            total_input_bytes,
+            total_output_bytes,
+            ..
+        } = &event
+        {
+            *completion_cb.lock().unwrap() = (
+                *total_input_bytes,
+                *total_output_bytes,
+                start_time.elapsed(),
+            );
         }
 
         // Collect log entries for file output
         if write_file {
             match &event {
-                ProgressEvent::ZipDone { path, output_path, .. } => {
+                ProgressEvent::ZipDone {
+                    path, output_path, ..
+                } => {
                     log_entries_cb.lock().unwrap().push(LogEntry {
                         status: "SUCCESS",
                         input: path.clone(),
@@ -239,7 +266,14 @@ fn main() -> Result<()> {
                 ProgressEvent::ZipError { path, message } => {
                     eprintln!("  ✗ {} : {}", short_path(path), message);
                 }
-                ProgressEvent::AllDone { total_zips, succeeded, skipped, failed, total_input_bytes, total_output_bytes } => {
+                ProgressEvent::AllDone {
+                    total_zips,
+                    succeeded,
+                    skipped,
+                    failed,
+                    total_input_bytes,
+                    total_output_bytes,
+                } => {
                     let (_, _, elapsed) = *completion_cb.lock().unwrap();
                     eprintln!("{}", "-".repeat(60));
                     eprintln!(
@@ -266,7 +300,17 @@ fn main() -> Result<()> {
     if write_file {
         let entries = log_entries.lock().unwrap();
         let (input_bytes, output_bytes, elapsed) = *completion.lock().unwrap();
-        if let Err(e) = write_log(&config, &entries, succeeded, skipped, failed, input_bytes, output_bytes, elapsed, print_cli) {
+        if let Err(e) = write_log(
+            &config,
+            &entries,
+            succeeded,
+            skipped,
+            failed,
+            input_bytes,
+            output_bytes,
+            elapsed,
+            print_cli,
+        ) {
             if print_cli {
                 eprintln!("Warning: failed to write log file: {e}");
             }
@@ -302,7 +346,11 @@ fn write_log(
         (name, dims)
     };
     let format_name = format!("{:?}", config.output_format).to_lowercase();
-    let threads_str = if config.threads == 0 { "auto (half of CPUs)".to_string() } else { config.threads.to_string() };
+    let threads_str = if config.threads == 0 {
+        "auto (half of CPUs)".to_string()
+    } else {
+        config.threads.to_string()
+    };
 
     let mut buf = String::new();
     buf.push_str("========================================\n");
@@ -336,7 +384,10 @@ fn write_log(
     buf.push_str("----------------------------------------\n");
     buf.push_str(&format!(
         "Total: {}  Succeeded: {}  Skipped: {}  Failed: {}\n",
-        entries.len(), succeeded, skipped, failed
+        entries.len(),
+        succeeded,
+        skipped,
+        failed
     ));
     if total_input_bytes > 0 {
         let saved = total_input_bytes.saturating_sub(total_output_bytes);
