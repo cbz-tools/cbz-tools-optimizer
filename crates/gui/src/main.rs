@@ -81,7 +81,7 @@ fn setup_style(ctx: &egui::Context) {
     let mut style = (*ctx.style()).clone();
 
     // Enlarge all text by ~35%
-    for (_, font_id) in style.text_styles.iter_mut() {
+    for font_id in style.text_styles.values_mut() {
         font_id.size *= 1.35;
     }
 
