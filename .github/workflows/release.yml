@@ -20,6 +20,34 @@ jobs:
         with:
           targets: x86_64-pc-windows-msvc
 
+      - name: Install dav1d (vcpkg)
+        shell: pwsh
+        run: |
+          C:\vcpkg\vcpkg.exe install dav1d:x64-windows
+
+          $src = "C:\vcpkg\installed\x64-windows\lib\pkgconfig\dav1d.pc"
+          $pkgConfigPath = Get-ChildItem "C:\vcpkg\downloads\tools\msys2" -Recurse -Filter pkg-config.exe |
+            Where-Object { $_.FullName -match "\\mingw64\\bin\\pkg-config\.exe$" } |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1 -ExpandProperty FullName
+          if (!(Test-Path $src) -or !$pkgConfigPath) {
+            Write-Error "dav1d or pkg-config was not installed by vcpkg"
+            exit 1
+          }
+
+          $pkgDir = Join-Path $env:RUNNER_TEMP "dav1d-pkgconfig"
+          New-Item -ItemType Directory -Path $pkgDir | Out-Null
+          (Get-Content $src) `
+            -replace '^prefix=.*', 'prefix=C:/vcpkg/installed/x64-windows' `
+            -replace '^includedir=.*', 'includedir=${prefix}/include' `
+            -replace '^libdir=.*', 'libdir=${prefix}/lib' `
+            -replace '"-L\$\{libdir\}"', '-L${libdir}' `
+            -replace '"-I\$\{includedir\}"', '-I${includedir}' |
+            Set-Content (Join-Path $pkgDir "dav1d.pc")
+
+          Add-Content $env:GITHUB_ENV "PKG_CONFIG_PATH=$($pkgDir.Replace('\', '/'))"
+          Add-Content $env:GITHUB_ENV "PKG_CONFIG=$pkgConfigPath"
+
       - name: Cache cargo
         uses: actions/cache@v4
         with:
@@ -48,8 +76,10 @@ jobs:
 
           Copy-Item target/x86_64-pc-windows-msvc/release/cbz-opt.exe     $dir/
           Copy-Item target/x86_64-pc-windows-msvc/release/cbz-opt-gui.exe $dir/
+          Copy-Item C:\vcpkg\installed\x64-windows\bin\dav1d.dll         $dir/
           Copy-Item README.md  $dir/
           Copy-Item LICENSE    $dir/
+          Copy-Item THIRD_PARTY_NOTICES.md $dir/
 
           Compress-Archive -Path $dir -DestinationPath "$dir.zip"
 
@@ -69,7 +99,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install system deps
-        run: sudo apt-get install -y libssl-dev pkg-config
+        run: sudo apt-get install -y libssl-dev libdav1d-dev pkg-config
 
       - name: Cache cargo
         uses: actions/cache@v4
@@ -81,6 +111,8 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build CLI
+        env:
+          SYSTEM_DEPS_DAV1D_LINK: static
         run: cargo build --release -p cbz-tools-optimizer-cli
 
       - name: Package
@@ -89,7 +121,7 @@ jobs:
           dir="cbz-tools-optimizer-${tag}-linux-x64"
           mkdir "$dir"
           cp target/release/cbz-opt "$dir/"
-          cp README.md LICENSE "$dir/"
+          cp README.md LICENSE THIRD_PARTY_NOTICES.md "$dir/"
           tar czf "${dir}.tar.gz" "$dir"
 
       - name: Upload to Release
@@ -106,6 +138,9 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Install dav1d
+        run: brew install dav1d pkg-config
+
       - name: Cache cargo
         uses: actions/cache@v4
         with:
@@ -116,6 +151,8 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build CLI
+        env:
+          SYSTEM_DEPS_DAV1D_LINK: static
         run: cargo build --release -p cbz-tools-optimizer-cli
 
       - name: Package
@@ -124,7 +161,7 @@ jobs:
           dir="cbz-tools-optimizer-${tag}-macos-x64"
           mkdir "$dir"
           cp target/release/cbz-opt "$dir/"
-          cp README.md LICENSE "$dir/"
+          cp README.md LICENSE THIRD_PARTY_NOTICES.md "$dir/"
           tar czf "${dir}.tar.gz" "$dir"
 
       - name: Upload to Release

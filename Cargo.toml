@@ -23,7 +23,7 @@ lto = "thin"
 
 [workspace.dependencies]
 # Image processing
-image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "avif", "bmp", "tiff", "gif"] }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "avif", "avif-native", "bmp", "tiff", "gif"] }
 # Parallelism
 rayon = "1.10"
 # ZIP

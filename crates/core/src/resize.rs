@@ -4,15 +4,14 @@ use image::{DynamicImage, ImageFormat};
 use crate::{OptimizeConfig, OutputFormat};
 
 /// Supported image extensions for input.
-/// Note: AVIF is supported as output format only (encoding via ravif).
-/// AVIF input decoding requires libdav1d which is not bundled; AVIF files
-/// inside a ZIP are passed through unchanged.
+/// AVIF decoding uses the native libdav1d library via `image/avif-native`.
 pub fn is_image(name: &str) -> bool {
     let lower = name.to_lowercase();
     lower.ends_with(".jpg")
         || lower.ends_with(".jpeg")
         || lower.ends_with(".png")
         || lower.ends_with(".webp")
+        || lower.ends_with(".avif")
         || lower.ends_with(".bmp")
         || lower.ends_with(".tiff")
         || lower.ends_with(".tif")
@@ -157,4 +156,33 @@ fn encode_image(img: DynamicImage, fmt: ImageFormat, jpeg_quality: u8) -> Result
         }
     }
     Ok(buf)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::SizePreset;
+    use image::GenericImageView;
+
+    #[test]
+    fn avif_input_can_be_resized_and_reencoded() {
+        let source = DynamicImage::new_rgb8(4, 4);
+        let mut input = Vec::new();
+        source
+            .write_to(&mut std::io::Cursor::new(&mut input), ImageFormat::Avif)
+            .unwrap();
+
+        let config = OptimizeConfig {
+            preset: SizePreset::Custom,
+            max_width: 2,
+            max_height: 2,
+            output_format: OutputFormat::Avif,
+            ..OptimizeConfig::default()
+        };
+        let (output, extension) = resize_image_bytes(&input, "page.avif", &config).unwrap();
+        let decoded = image::load_from_memory(&output).unwrap();
+
+        assert_eq!(extension, ".avif");
+        assert_eq!(decoded.dimensions(), (2, 2));
+    }
 }

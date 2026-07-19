@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Set up MSVC and dav1d
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          C:\vcpkg\vcpkg.exe install dav1d:x64-windows
+
+          $src = "C:\vcpkg\installed\x64-windows\lib\pkgconfig\dav1d.pc"
+          $pkgConfigPath = Get-ChildItem "C:\vcpkg\downloads\tools\msys2" -Recurse -Filter pkg-config.exe |
+            Where-Object { $_.FullName -match "\\mingw64\\bin\\pkg-config\.exe$" } |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1 -ExpandProperty FullName
+          if (!(Test-Path $src) -or !$pkgConfigPath) {
+            Write-Error "dav1d or pkg-config was not installed by vcpkg"
+            exit 1
+          }
+
+          $pkgDir = Join-Path $env:RUNNER_TEMP "dav1d-pkgconfig"
+          New-Item -ItemType Directory -Path $pkgDir | Out-Null
+          (Get-Content $src) `
+            -replace '^prefix=.*', 'prefix=C:/vcpkg/installed/x64-windows' `
+            -replace '^includedir=.*', 'includedir=${prefix}/include' `
+            -replace '^libdir=.*', 'libdir=${prefix}/lib' `
+            -replace '"-L\$\{libdir\}"', '-L${libdir}' `
+            -replace '"-I\$\{includedir\}"', '-I${includedir}' |
+            Set-Content (Join-Path $pkgDir "dav1d.pc")
+
+          Add-Content $env:GITHUB_ENV "PKG_CONFIG_PATH=$($pkgDir.Replace('\', '/'))"
+          Add-Content $env:GITHUB_ENV "PKG_CONFIG=$pkgConfigPath"
+          Add-Content $env:GITHUB_PATH "C:\vcpkg\installed\x64-windows\bin"
+
+      - name: Install dav1d (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libdav1d-dev pkg-config
+
+      - name: Install dav1d (macOS)
+        if: runner.os == 'macOS'
+        run: brew install dav1d pkg-config
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Check workspace
+        run: cargo check --workspace --all-targets
+
+      - name: Lint workspace
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Test workspace
+        run: cargo test --workspace --quiet
+
+      - name: Build portable release CLI
+        if: runner.os != 'Windows'
+        env:
+          SYSTEM_DEPS_DAV1D_LINK: static
+        run: cargo build --release -p cbz-tools-optimizer-cli

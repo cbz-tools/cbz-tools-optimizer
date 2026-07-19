@@ -116,14 +116,14 @@ cbz-opt --output-format jpeg --convert-only input.cbz
 | PNG | Yes | Yes |
 | WebP (static) | Yes | Yes |
 | WebP (animated) | Detected, skipped | — |
-| AVIF | — | Yes |
+| AVIF | Yes | Yes |
 | BMP | Yes | Converted to output format |
 | TIFF | Yes | Converted to output format |
 | GIF | Skipped | — |
 
 Archives containing animated WebP or GIF are skipped entirely to preserve animations.  
 BMP and TIFF inputs are converted to the format specified by `--output-format` (default: `jpeg`).  
-AVIF is supported as **output only** (`--output-format avif`). AVIF files inside a ZIP are passed through unchanged.
+AVIF is supported as both input and output (`--output-format avif`). AVIF decoding uses the bundled native `libdav1d` runtime on Windows.
 
 ---
 
