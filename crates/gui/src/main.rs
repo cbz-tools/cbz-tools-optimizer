@@ -58,7 +58,7 @@ fn setup_fonts(ctx: &egui::Context) {
         if let Ok(data) = std::fs::read(path) {
             fonts
                 .font_data
-                .insert("cjk".to_owned(), egui::FontData::from_owned(data).into());
+                .insert("cjk".to_owned(), egui::FontData::from_owned(data));
             // CJK font has highest priority so Latin and CJK share the same typeface
             fonts
                 .families
@@ -254,9 +254,7 @@ impl App {
     }
 
     fn add_path(&mut self, path: &Path) {
-        if path.is_dir() {
-            self.add_entry(path.to_path_buf());
-        } else if is_archive_ext(path) {
+        if path.is_dir() || is_archive_ext(path) {
             self.add_entry(path.to_path_buf());
         }
     }
@@ -572,8 +570,7 @@ impl eframe::App for App {
                 let has_pending = self.files.iter().any(|e| e.status == FileStatus::Pending);
                 let can_start = !is_running && has_pending;
                 let start_clicked = ui
-                    .scope(|ui| {
-                        ui.set_enabled(can_start);
+                    .add_enabled_ui(can_start, |ui| {
                         ui.add_sized(
                             [140.0, 40.0],
                             egui::Button::new({
@@ -727,8 +724,7 @@ impl eframe::App for App {
 
                 // Remove selected
                 let remove_clicked = ui
-                    .scope(|ui| {
-                        ui.set_enabled(!is_running && self.selected.is_some());
+                    .add_enabled_ui(!is_running && self.selected.is_some(), |ui| {
                         ui.add_sized(
                             [0.0, 28.0],
                             egui::Button::new(btn_label(ICON_REMOVE, s.remove)),
@@ -746,8 +742,7 @@ impl eframe::App for App {
 
                 // Clear
                 let clear_clicked = ui
-                    .scope(|ui| {
-                        ui.set_enabled(!is_running);
+                    .add_enabled_ui(!is_running, |ui| {
                         ui.add_sized(
                             [0.0, 28.0],
                             egui::Button::new(btn_label(ICON_CLEAR_ALL, s.clear)),
@@ -799,8 +794,7 @@ impl eframe::App for App {
 
                             // Preset (disabled when convert_only)
                             ui.label(s2.preset_label);
-                            ui.scope(|ui| {
-                                ui.set_enabled(!d.convert_only);
+                            ui.add_enabled_ui(!d.convert_only, |ui| {
                                 egui::ComboBox::from_id_salt("preset_combo")
                                     .selected_text(&d.preset)
                                     .show_ui(ui, |ui| {

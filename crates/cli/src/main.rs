@@ -98,6 +98,15 @@ struct LogEntry {
     detail: String, // output path, skip reason, or error message
 }
 
+struct LogSummary {
+    succeeded: usize,
+    skipped: usize,
+    failed: usize,
+    total_input_bytes: u64,
+    total_output_bytes: u64,
+    elapsed: std::time::Duration,
+}
+
 fn main() -> Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn")).init();
 
@@ -300,17 +309,15 @@ fn main() -> Result<()> {
     if write_file {
         let entries = log_entries.lock().unwrap();
         let (input_bytes, output_bytes, elapsed) = *completion.lock().unwrap();
-        if let Err(e) = write_log(
-            &config,
-            &entries,
+        let summary = LogSummary {
             succeeded,
             skipped,
             failed,
-            input_bytes,
-            output_bytes,
+            total_input_bytes: input_bytes,
+            total_output_bytes: output_bytes,
             elapsed,
-            print_cli,
-        ) {
+        };
+        if let Err(e) = write_log(&config, &entries, &summary, print_cli) {
             if print_cli {
                 eprintln!("Warning: failed to write log file: {e}");
             }
@@ -327,12 +334,7 @@ fn main() -> Result<()> {
 fn write_log(
     config: &OptimizeConfig,
     entries: &[LogEntry],
-    succeeded: usize,
-    skipped: usize,
-    failed: usize,
-    total_input_bytes: u64,
-    total_output_bytes: u64,
-    elapsed: std::time::Duration,
+    summary: &LogSummary,
     print_cli: bool,
 ) -> Result<()> {
     let now = chrono::Local::now();
@@ -385,19 +387,21 @@ fn write_log(
     buf.push_str(&format!(
         "Total: {}  Succeeded: {}  Skipped: {}  Failed: {}\n",
         entries.len(),
-        succeeded,
-        skipped,
-        failed
+        summary.succeeded,
+        summary.skipped,
+        summary.failed
     ));
-    if total_input_bytes > 0 {
-        let saved = total_input_bytes.saturating_sub(total_output_bytes);
-        let pct = saved as f64 / total_input_bytes as f64 * 100.0;
+    if summary.total_input_bytes > 0 {
+        let saved = summary
+            .total_input_bytes
+            .saturating_sub(summary.total_output_bytes);
+        let pct = saved as f64 / summary.total_input_bytes as f64 * 100.0;
         buf.push_str(&format!(
             "✔ Saved: {} → {} (-{:.0}%) | ⏱ {}\n",
-            format_size(total_input_bytes),
-            format_size(total_output_bytes),
+            format_size(summary.total_input_bytes),
+            format_size(summary.total_output_bytes),
             pct,
-            format_elapsed(elapsed.as_secs()),
+            format_elapsed(summary.elapsed.as_secs()),
         ));
     }
     buf.push_str("========================================\n");
