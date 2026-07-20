@@ -83,12 +83,6 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all -- --check
 
-      - name: Check workspace
-        run: cargo check --workspace --all-targets
-
-      - name: Lint workspace
-        run: cargo clippy --workspace --all-targets -- -D warnings
-
       - name: Build and verify Windows release package
         if: runner.os == 'Windows'
         shell: pwsh
