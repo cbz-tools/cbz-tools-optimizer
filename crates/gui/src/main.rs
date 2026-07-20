@@ -27,6 +27,8 @@ use egui_material_icons::icons::{
     ICON_REMOVE, ICON_SETTINGS,
 };
 
+const MATERIAL_ICON_FONT: &str = "material-icons";
+
 // ---------------------------------------------------------------------------
 // Font & style setup
 // ---------------------------------------------------------------------------
@@ -34,17 +36,15 @@ use egui_material_icons::icons::{
 fn setup_fonts(ctx: &egui::Context) {
     let mut fonts = egui::FontDefinitions::default();
 
-    // Material Icons font (fallback — icons live in the Unicode PUA range)
-    let mut icon_data = egui::FontData::from_static(egui_material_icons::FONT_DATA);
-    icon_data.tweak.y_offset_factor = 0.05;
+    // Keep Material Icons in their own family instead of treating them as text fallback.
+    let icon_data = egui::FontData::from_static(egui_material_icons::FONT_DATA);
     fonts
         .font_data
-        .insert("material-icons".to_owned(), icon_data);
-    fonts
-        .families
-        .get_mut(&egui::FontFamily::Proportional)
-        .unwrap()
-        .push("material-icons".to_owned());
+        .insert(MATERIAL_ICON_FONT.to_owned(), icon_data);
+    fonts.families.insert(
+        egui::FontFamily::Name(MATERIAL_ICON_FONT.into()),
+        vec![MATERIAL_ICON_FONT.to_owned()],
+    );
 
     // Windows system fonts — try in priority order (Yu Gothic → Meiryo → MS Gothic → Noto CJK)
     let candidates = [
@@ -56,10 +56,13 @@ fn setup_fonts(ctx: &egui::Context) {
 
     for path in &candidates {
         if let Ok(data) = std::fs::read(path) {
-            fonts
-                .font_data
-                .insert("cjk".to_owned(), egui::FontData::from_owned(data));
-            // CJK font has highest priority so Latin and CJK share the same typeface
+            let mut cjk_data = egui::FontData::from_owned(data);
+            // Yu Gothic glyphs sit high within egui's line box. This is a
+            // font-wide calibration, applied once to every regular label.
+            cjk_data.tweak.y_offset = 1.5;
+            fonts.font_data.insert("cjk".to_owned(), cjk_data);
+            // Use one font for both Latin and CJK text so mixed Japanese/English
+            // labels share identical line metrics on Windows.
             fonts
                 .families
                 .entry(egui::FontFamily::Proportional)
@@ -91,9 +94,10 @@ fn setup_style(ctx: &egui::Context) {
     ctx.set_style(style);
 }
 
-/// Build a button label that renders the icon and text side-by-side at different sizes.
-/// Material Symbols glyphs occupy ~60-70% of the em square, so the icon font size
-/// must be set larger than the text size to achieve a visually matching height.
+fn material_icon_font(size: f32) -> egui::FontId {
+    egui::FontId::new(size, egui::FontFamily::Name(MATERIAL_ICON_FONT.into()))
+}
+
 fn btn_label(icon: &str, label: &str) -> egui::text::LayoutJob {
     let color = egui::Color32::from_gray(20);
     let mut job = egui::text::LayoutJob::default();
@@ -101,7 +105,7 @@ fn btn_label(icon: &str, label: &str) -> egui::text::LayoutJob {
         icon,
         0.0,
         egui::TextFormat {
-            font_id: egui::FontId::proportional(20.0),
+            font_id: material_icon_font(20.0),
             color,
             valign: egui::Align::Center,
             ..Default::default()
@@ -501,7 +505,7 @@ impl eframe::App for App {
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     // Settings button
                     if ui
-                        .button(egui::RichText::new(ICON_SETTINGS).size(20.0))
+                        .button(egui::RichText::new(ICON_SETTINGS).font(material_icon_font(20.0)))
                         .clicked()
                     {
                         self.settings_draft = self.config.clone();
@@ -580,7 +584,7 @@ impl eframe::App for App {
                                     ICON_PLAY_ARROW,
                                     0.0,
                                     egui::TextFormat {
-                                        font_id: egui::FontId::proportional(28.0),
+                                        font_id: material_icon_font(28.0),
                                         color,
                                         valign: egui::Align::Center,
                                         ..Default::default()
