@@ -181,7 +181,7 @@ Multiple ZIP/CBZ files
                     └── resize / convert with CatmullRom filter
 ```
 
-- Images already within the size limit are passed through without re-encoding
+- Images already within the pixel-dimension limit are not resized, but are still encoded into the selected output format in normal mode. To preserve their bytes, use `--convert-only` with the matching output format.
 - Each ZIP is processed independently; one failure does not abort others
 - Default thread count is **half of logical CPUs** to avoid saturating the system (override with `--threads N`)
 - Output file conflict is controlled by `--overwrite-mode` (default: skip existing files)
@@ -198,7 +198,7 @@ See [CHANGELOG.md](CHANGELOG.md).
 
 ## Third-Party Licenses
 
-See [THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md).
+See [THIRDPARTY_LICENSES.md](THIRDPARTY_LICENSES.md).
 
 ---
 

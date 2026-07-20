@@ -7,7 +7,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 authors = ["cbz-tools"]
 license = "MIT"
@@ -24,6 +24,11 @@ lto = "thin"
 [workspace.dependencies]
 # Image processing
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "avif", "avif-native", "bmp", "tiff", "gif"] }
+# AVIF output through SVT-AV1. AVIF input remains image + dav1d.
+avif-serialize = "0.8.8"
+avif-parse = "2.1"
+ravif = { version = "0.13", default-features = false }
+shiguredo_svt_av1 = "2026.1.0"
 # Parallelism
 rayon = "1.10"
 # ZIP

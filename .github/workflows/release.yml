@@ -71,22 +71,17 @@ jobs:
         shell: pwsh
         run: |
           $tag = "${{ github.ref_name }}"
-          $dir = "cbz-tools-optimizer-$tag-windows-x64"
-          New-Item -ItemType Directory -Path $dir
-
-          Copy-Item target/x86_64-pc-windows-msvc/release/cbz-opt.exe     $dir/
-          Copy-Item target/x86_64-pc-windows-msvc/release/cbz-opt-gui.exe $dir/
-          Copy-Item C:\vcpkg\installed\x64-windows\bin\dav1d.dll         $dir/
-          Copy-Item README.md  $dir/
-          Copy-Item LICENSE    $dir/
-          Copy-Item THIRD_PARTY_NOTICES.md $dir/
-
-          Compress-Archive -Path $dir -DestinationPath "$dir.zip"
+          & .\scripts\package_windows_release.ps1 `
+            -Version $tag `
+            -Workspace $env:GITHUB_WORKSPACE `
+            -OutputDir "target/package"
 
       - name: Upload to Release
         uses: softprops/action-gh-release@v2
         with:
-          files: "*.zip"
+          files: |
+            target/package/*.zip
+            target/package/*.zip.sha256
           draft: false
 
   build-linux:
@@ -121,7 +116,11 @@ jobs:
           dir="cbz-tools-optimizer-${tag}-linux-x64"
           mkdir "$dir"
           cp target/release/cbz-opt "$dir/"
-          cp README.md LICENSE THIRD_PARTY_NOTICES.md "$dir/"
+          cp README.md LICENSE THIRDPARTY_LICENSES.md "$dir/"
+          mkdir -p "$dir/third_party/dav1d" "$dir/third_party/svt-av1" "$dir/third_party/shiguredo_svt_av1"
+          cp third_party/dav1d/LICENSE "$dir/third_party/dav1d/"
+          cp third_party/svt-av1/LICENSE "$dir/third_party/svt-av1/"
+          cp third_party/shiguredo_svt_av1/LICENSE "$dir/third_party/shiguredo_svt_av1/"
           tar czf "${dir}.tar.gz" "$dir"
 
       - name: Upload to Release
@@ -161,7 +160,11 @@ jobs:
           dir="cbz-tools-optimizer-${tag}-macos-x64"
           mkdir "$dir"
           cp target/release/cbz-opt "$dir/"
-          cp README.md LICENSE THIRD_PARTY_NOTICES.md "$dir/"
+          cp README.md LICENSE THIRDPARTY_LICENSES.md "$dir/"
+          mkdir -p "$dir/third_party/dav1d" "$dir/third_party/svt-av1" "$dir/third_party/shiguredo_svt_av1"
+          cp third_party/dav1d/LICENSE "$dir/third_party/dav1d/"
+          cp third_party/svt-av1/LICENSE "$dir/third_party/svt-av1/"
+          cp third_party/shiguredo_svt_av1/LICENSE "$dir/third_party/shiguredo_svt_av1/"
           tar czf "${dir}.tar.gz" "$dir"
 
       - name: Upload to Release

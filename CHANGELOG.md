@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.2] - 2026-07-20
+
+### Added
+- AVIF input support: AVIF pages inside ZIP/CBZ archives can now be resized and re-encoded. Windows builds use the bundled dav1d runtime for decoding.
+
+### Changed
+- AVIF output now uses SVT-AV1 for color encoding.
+- SVT-AV1 and the outer Rayon page-level scheduler both use their automatic parallelism settings by default.
+- Release packages now include third-party license notices and source licenses for the distributed native components.
+
+---
+
 ## [0.1.1] - 2026-04-18
 
 ### Added

@@ -92,6 +92,58 @@ jobs:
       - name: Test AVIF processing
         run: cargo test -p cbz-tools-optimizer-core --quiet
 
+      - name: Build and verify Windows release package
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER: link.exe
+        run: |
+          cargo build --release --target x86_64-pc-windows-msvc `
+            -p cbz-tools-optimizer-cli `
+            -p cbz-tools-optimizer-gui
+
+          & .\scripts\package_windows_release.ps1 `
+            -Version ci `
+            -Workspace $env:GITHUB_WORKSPACE `
+            -OutputDir "target/package"
+
+          $packageName = "cbz-tools-optimizer-ci-windows-x64"
+          $zipPath = "target/package/$packageName.zip"
+          $hashPath = "$zipPath.sha256"
+          if (!(Test-Path $zipPath) -or !(Test-Path $hashPath)) {
+            throw "Release package or checksum was not created"
+          }
+
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $archive = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path $zipPath))
+          try {
+            $entries = @($archive.Entries.FullName)
+          } finally {
+            $archive.Dispose()
+          }
+
+          $expected = @(
+            "$packageName/cbz-opt.exe",
+            "$packageName/cbz-opt-gui.exe",
+            "$packageName/dav1d.dll",
+            "$packageName/README.md",
+            "$packageName/LICENSE",
+            "$packageName/THIRDPARTY_LICENSES.md",
+            "$packageName/third_party/dav1d/LICENSE",
+            "$packageName/third_party/svt-av1/LICENSE",
+            "$packageName/third_party/shiguredo_svt_av1/LICENSE"
+          )
+          $missing = @($expected | Where-Object { $_ -notin $entries })
+          if ($missing) {
+            throw "Release package is missing: $($missing -join ', ')"
+          }
+
+          $expectedHash = (Get-Content $hashPath -Raw).Trim().Split(' ')[0]
+          $actualHash = (Get-FileHash -Algorithm SHA256 $zipPath).Hash.ToLowerInvariant()
+          if ($expectedHash -ne $actualHash) {
+            throw "Release package checksum does not match"
+          }
+
       - name: Build portable release CLI
         if: runner.os != 'Windows'
         env:
