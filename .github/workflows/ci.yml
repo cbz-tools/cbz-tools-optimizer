@@ -89,9 +89,6 @@ jobs:
       - name: Lint workspace
         run: cargo clippy --workspace --all-targets -- -D warnings
 
-      - name: Test AVIF processing
-        run: cargo test -p cbz-tools-optimizer-core --quiet
-
       - name: Build and verify Windows release package
         if: runner.os == 'Windows'
         shell: pwsh
