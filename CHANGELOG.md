@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.3] - 2026-07-24
+
+### Changed
+- Updated the Windows GUI application icon and added a script to generate its multi-size ICO asset from the source PNG.
+
+---
+
 ## [0.1.2] - 2026-07-20
 
 ### Added
