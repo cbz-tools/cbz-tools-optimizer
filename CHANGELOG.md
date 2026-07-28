@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.4] - 2026-07-28
+
+### Fixed
+- Windows GUI builds now copy `dav1d.dll` beside `cbz-opt-gui.exe`, so the direct build output can start with the bundled AVIF decoding runtime.
+
+---
+
 ## [0.1.3] - 2026-07-24
 
 ### Changed

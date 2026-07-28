@@ -871,7 +871,10 @@ impl eframe::App for App {
 
                             // Threads
                             ui.label(s2.threads_label);
-                            ui.add(egui::DragValue::new(&mut d.threads).range(0..=256));
+                            ui.horizontal(|ui| {
+                                ui.add(egui::DragValue::new(&mut d.threads).range(0..=256));
+                                ui.label("0 = Auto");
+                            });
                             ui.end_row();
 
                             // Overwrite Mode
