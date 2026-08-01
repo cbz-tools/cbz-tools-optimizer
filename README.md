@@ -1,6 +1,6 @@
 # cbz-tools-optimizer
 
-High-performance CBZ optimizer built in Rust — batch resize, compress, and convert images (JPEG/PNG/WebP/AVIF) for Kindle and e-readers, fully offline.  
+High-performance CBZ optimizer built in Rust — batch resize, compress, and convert images (JPEG/PNG/WebP/AVIF) inside ZIP/CBZ/RAR/CBR archives, fully offline.
 CLI for Windows / Linux / macOS. Windows GUI included.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -27,7 +27,7 @@ Extract the archive and run the binary directly — no installation required.
 |---|---|
 | 📦 **Storage savings** | Significantly reduce file size — real-world result: **9.0 GB → 647.6 MB (-93%)** in 1m 35s |
 | 🔄 **Format conversion** | Convert JPEG / PNG / WebP / AVIF in bulk — resize and convert in a single pass |
-| ⚡ **Speed** | Parallel processing across ZIPs and images via rayon |
+| ⚡ **Speed** | Parallel processing across archives and images via rayon |
 | 🖥️ **Cross-platform** | Windows / Linux / macOS — single binary, no install |
 | 🎯 **Device-ready presets** | iPad, Kindle, 4K and more — one flag to optimize for your device |
 | 🤖 **Script-friendly** | Batch CLI with JSON output for automation and pipeline integration |
@@ -42,6 +42,9 @@ Extract the archive and run the binary directly — no installation required.
 ```bash
 # Basic (default: ipad preset 2048×1536, JPEG quality 85)
 cbz-opt input.cbz
+
+# Convert a RAR/CBR book to an optimized CBZ
+cbz-opt input.rar
 
 # Multiple files
 cbz-opt *.zip
@@ -114,6 +117,16 @@ cbz-opt --output-format jpeg --convert-only input.cbz
 
 ## Supported Formats
 
+### Archives
+
+| Input archives | Output archive |
+|---|---|
+| ZIP / CBZ / RAR / CBR | CBZ |
+
+RAR/CBR input follows the same UnRAR-based handling as the companion viewer. The output is a ZIP container with a `.cbz` extension.
+
+### Images
+
 | Format | Input | Output |
 |---|---|---|
 | JPEG | Yes | Yes |
@@ -134,7 +147,7 @@ AVIF is supported as both input and output (`--output-format avif`). AVIF decodi
 ## GUI Usage
 
 1. Launch `cbz-opt-gui.exe`
-2. Drag and drop ZIP/CBZ files or folders onto the window (or use **Add Files…** / **Add Folder…**)
+2. Drag and drop ZIP/CBZ/RAR/CBR files or folders onto the window (or use **Add Files…** / **Add Folder…**)
 3. Configure options via the **⚙** button and click **▶ Start**
 4. A completion summary is shown next to the Start button when processing finishes
 
@@ -178,15 +191,15 @@ Please use the provided issue templates.
 ## How It Works
 
 ```
-Multiple ZIP/CBZ files
-  └── rayon::par_iter()   ← parallel across ZIPs
-        └── each ZIP entry
+Multiple ZIP/CBZ/RAR/CBR files
+  └── rayon::par_iter()   ← parallel across archives
+        └── each archive entry
               └── rayon::par_iter()   ← parallel across images
                     └── resize / convert with CatmullRom filter
 ```
 
 - Images already within the pixel-dimension limit are not resized, but are still encoded into the selected output format in normal mode. To preserve their bytes, use `--convert-only` with the matching output format.
-- Each ZIP is processed independently; one failure does not abort others
+- Each archive is processed independently; one failure does not abort others
 - Default thread count is **half of logical CPUs** to avoid saturating the system (override with `--threads N`)
 - Output file conflict is controlled by `--overwrite-mode` (default: skip existing files)
 - A log file (`cbz-opt_YYYYMMDD_HHMMSS.log`) is written when `--log-mode both` or `file` is specified

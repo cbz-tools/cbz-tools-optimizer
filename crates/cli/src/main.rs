@@ -4,7 +4,7 @@ use std::time::Instant;
 
 use anyhow::{ensure, Result};
 use cbz_tools_optimizer_core::{
-    format_elapsed, format_size, processor::process_zips, AnimatedWebpEncoding,
+    format_elapsed, format_size, processor::process_archives, AnimatedWebpEncoding,
     AnimatedWebpKeyframePolicy, AnimatedWebpOptions, AnimatedWebpOutputPolicy,
     AnimatedWebpResizeFilter, LogMode, OptimizeConfig, OutputFormat, OverwriteMode, ProgressEvent,
     SizePreset,
@@ -15,11 +15,11 @@ use clap::Parser;
 #[command(
     name = "cbz-opt",
     version,
-    about = "Resize images inside ZIP/CBZ files — blazing fast with parallel processing",
+    about = "Resize images inside ZIP/CBZ/RAR/CBR files — blazing fast with parallel processing",
     long_about = None,
 )]
 struct Args {
-    /// Input ZIP/CBZ files (multiple files supported)
+    /// Input ZIP/CBZ/RAR/CBR files (multiple files supported)
     #[arg(required = true, value_name = "FILE")]
     files: Vec<PathBuf>,
 
@@ -266,7 +266,7 @@ fn main() -> Result<()> {
 
     let start_time = Instant::now();
 
-    let (succeeded, skipped, failed) = process_zips(&args.files, &config, move |event| {
+    let (succeeded, skipped, failed) = process_archives(&args.files, &config, move |event| {
         // Always capture AllDone stats so write_log can use them
         if let ProgressEvent::AllDone {
             total_input_bytes,
@@ -318,7 +318,7 @@ fn main() -> Result<()> {
             }
         } else if print_cli {
             // Human-readable output
-            // Note: ZIPs are processed in parallel, so we print each event on its own line.
+            // Note: archives are processed in parallel, so we print each event on its own line.
             // ImageDone is omitted to avoid interleaved noise across concurrent ZIPs.
             match &event {
                 ProgressEvent::ZipStarted { path, image_count } => {

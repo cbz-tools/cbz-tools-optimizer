@@ -1,4 +1,4 @@
-use std::io::{Read, Write};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -6,28 +6,23 @@ use anyhow::{Context, Result};
 use rayon::prelude::*;
 use zip::write::SimpleFileOptions;
 
+use crate::archive::{archive_kind, read_archive_entries, ArchiveEntry, ArchiveKind};
 use crate::resize::{is_image, resize_image_bytes};
 use crate::{OptimizeConfig, OverwriteMode, ProgressEvent};
 
-/// Outcome of processing a single ZIP
-enum ZipOutcome {
+/// Outcome of processing a single archive.
+enum ArchiveOutcome {
     Done { input_bytes: u64, output_bytes: u64 },
     Skipped,
     Failed,
 }
 
-/// An entry read from a ZIP archive
-enum ZipEntry {
-    Directory(String),
-    File(String, Vec<u8>),
-}
-
-/// Entry point for parallel processing of multiple ZIP files.
+/// Entry point for parallel processing of multiple ZIP/CBZ/RAR/CBR files.
 ///
 /// `on_progress` must be `Send + Sync` as it is called across threads.
 /// Returns (succeeded, skipped, failed).
-pub fn process_zips<F>(
-    zip_paths: &[PathBuf],
+pub fn process_archives<F>(
+    archive_paths: &[PathBuf],
     config: &OptimizeConfig,
     on_progress: F,
 ) -> (usize, usize, usize)
@@ -48,8 +43,8 @@ where
     let on_progress = Arc::new(on_progress);
     let config = Arc::new(config.clone());
 
-    let outcomes: Vec<ZipOutcome> = pool.install(|| {
-        zip_paths
+    let outcomes: Vec<ArchiveOutcome> = pool.install(|| {
+        archive_paths
             .par_iter()
             .map(|path| {
                 let cb = Arc::clone(&on_progress);
@@ -57,7 +52,7 @@ where
 
                 // Catch panics to prevent them from propagating
                 let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    process_one_zip(path, &cfg, &*cb)
+                    process_one_archive(path, &cfg, &*cb)
                 }));
 
                 match result {
@@ -69,28 +64,28 @@ where
                             input_bytes,
                             output_bytes,
                         });
-                        ZipOutcome::Done {
+                        ArchiveOutcome::Done {
                             input_bytes,
                             output_bytes,
                         }
                     }
                     Ok(Ok(None)) => {
-                        // ZipSkipped already emitted inside process_one_zip
-                        ZipOutcome::Skipped
+                        // ZipSkipped already emitted inside process_one_archive
+                        ArchiveOutcome::Skipped
                     }
                     Ok(Err(e)) => {
                         cb(ProgressEvent::ZipError {
                             path: path.display().to_string(),
                             message: e.to_string(),
                         });
-                        ZipOutcome::Failed
+                        ArchiveOutcome::Failed
                     }
                     Err(_panic) => {
                         cb(ProgressEvent::ZipError {
                             path: path.display().to_string(),
                             message: "Unexpected error occurred".to_string(),
                         });
-                        ZipOutcome::Failed
+                        ArchiveOutcome::Failed
                     }
                 }
             })
@@ -99,27 +94,27 @@ where
 
     let succeeded = outcomes
         .iter()
-        .filter(|o| matches!(o, ZipOutcome::Done { .. }))
+        .filter(|o| matches!(o, ArchiveOutcome::Done { .. }))
         .count();
     let skipped = outcomes
         .iter()
-        .filter(|o| matches!(o, ZipOutcome::Skipped))
+        .filter(|o| matches!(o, ArchiveOutcome::Skipped))
         .count();
     let failed = outcomes
         .iter()
-        .filter(|o| matches!(o, ZipOutcome::Failed))
+        .filter(|o| matches!(o, ArchiveOutcome::Failed))
         .count();
     let total_input_bytes: u64 = outcomes
         .iter()
         .map(|o| match o {
-            ZipOutcome::Done { input_bytes, .. } => *input_bytes,
+            ArchiveOutcome::Done { input_bytes, .. } => *input_bytes,
             _ => 0,
         })
         .sum();
     let total_output_bytes: u64 = outcomes
         .iter()
         .map(|o| match o {
-            ZipOutcome::Done { output_bytes, .. } => *output_bytes,
+            ArchiveOutcome::Done { output_bytes, .. } => *output_bytes,
             _ => 0,
         })
         .sum();
@@ -136,9 +131,22 @@ where
     (succeeded, skipped, failed)
 }
 
-/// Process a single ZIP. Returns Ok(Some((path, input_bytes))) on success, Ok(None) if skipped, Err on failure.
-fn process_one_zip<F>(
-    zip_path: &Path,
+/// Backward-compatible ZIP-named entry point for existing library callers.
+pub fn process_zips<F>(
+    archive_paths: &[PathBuf],
+    config: &OptimizeConfig,
+    on_progress: F,
+) -> (usize, usize, usize)
+where
+    F: Fn(ProgressEvent) + Send + Sync,
+{
+    process_archives(archive_paths, config, on_progress)
+}
+
+/// Process a single archive. Returns Ok(Some((path, input_bytes))) on success,
+/// Ok(None) if skipped, Err on failure.
+fn process_one_archive<F>(
+    archive_path: &Path,
     config: &OptimizeConfig,
     on_progress: &F,
 ) -> Result<Option<(PathBuf, u64)>>
@@ -146,39 +154,21 @@ where
     F: Fn(ProgressEvent) + Send + Sync,
 {
     // --- Read ---
-    let zip_data = std::fs::read(zip_path)
-        .with_context(|| format!("Failed to read: {}", zip_path.display()))?;
-    let input_bytes = zip_data.len() as u64;
-
-    let mut archive = zip::ZipArchive::new(std::io::Cursor::new(&zip_data))
-        .with_context(|| format!("Failed to open ZIP: {}", zip_path.display()))?;
-
-    // Collect entries, distinguishing directories from files
-    let entries: Vec<ZipEntry> = (0..archive.len())
-        .map(|i| {
-            let mut entry = archive.by_index(i)?;
-            let name = entry.name().to_string();
-            if entry.is_dir() {
-                Ok(ZipEntry::Directory(name))
-            } else {
-                let mut data = Vec::with_capacity(entry.size() as usize);
-                entry.read_to_end(&mut data)?;
-                Ok(ZipEntry::File(name, data))
-            }
-        })
-        .collect::<Result<_, zip::result::ZipError>>()
-        .context("Failed to read ZIP entries")?;
+    let input_bytes = std::fs::metadata(archive_path)
+        .with_context(|| format!("Failed to stat: {}", archive_path.display()))?
+        .len();
+    let entries = read_archive_entries(archive_path)?;
 
     // GIF animation remains unsupported. Animated WebP is handled per entry by
     // the dedicated optimization path, so it must not skip the whole archive.
     let has_unsupported_animation = entries.iter().any(|e| match e {
-        ZipEntry::File(name, _) => name.to_lowercase().ends_with(".gif"),
-        ZipEntry::Directory(_) => false,
+        ArchiveEntry::File(name, _) => name.to_lowercase().ends_with(".gif"),
+        ArchiveEntry::Directory(_) => false,
     });
 
     if has_unsupported_animation {
         on_progress(ProgressEvent::ZipSkipped {
-            path: zip_path.display().to_string(),
+            path: archive_path.display().to_string(),
             reason: "Skipped: contains GIF (animation is not supported)".to_string(),
         });
         return Ok(None);
@@ -186,24 +176,24 @@ where
 
     let image_count = entries
         .iter()
-        .filter(|e| matches!(e, ZipEntry::File(name, _) if is_image(name)))
+        .filter(|e| matches!(e, ArchiveEntry::File(name, _) if is_image(name)))
         .count();
     on_progress(ProgressEvent::ZipStarted {
-        path: zip_path.display().to_string(),
+        path: archive_path.display().to_string(),
         image_count,
     });
 
     // --- Parallel resize ---
-    let zip_path_str = zip_path.display().to_string();
+    let archive_path_str = archive_path.display().to_string();
     let total = entries.len();
 
     // Process entries in parallel; directories are passed through unchanged
-    let processed: Vec<ZipEntry> = entries
+    let processed: Vec<ArchiveEntry> = entries
         .into_par_iter()
         .enumerate()
         .map(|(idx, entry)| match entry {
-            ZipEntry::Directory(name) => ZipEntry::Directory(name),
-            ZipEntry::File(name, data) => {
+            ArchiveEntry::Directory(name) => ArchiveEntry::Directory(name),
+            ArchiveEntry::File(name, data) => {
                 let (out_data, out_name) = if is_image(&name) {
                     match resize_image_bytes(&data, &name, config) {
                         Ok((resized, ext)) => (resized, replace_extension(&name, ext)),
@@ -217,20 +207,20 @@ where
                 };
 
                 on_progress(ProgressEvent::ImageDone {
-                    zip_path: zip_path_str.clone(),
+                    zip_path: archive_path_str.clone(),
                     image_index: idx + 1,
                     total,
                 });
 
-                ZipEntry::File(out_name, out_data)
+                ArchiveEntry::File(out_name, out_data)
             }
         })
         .collect();
 
     // --- Write ZIP ---
-    let Some(output_path) = resolve_output_path(zip_path, config)? else {
+    let Some(output_path) = resolve_output_path(archive_path, config)? else {
         on_progress(ProgressEvent::ZipSkipped {
-            path: zip_path.display().to_string(),
+            path: archive_path.display().to_string(),
             reason: "Output file already exists (skip mode)".to_string(),
         });
         return Ok(None);
@@ -245,10 +235,10 @@ where
 
     for entry in processed {
         match entry {
-            ZipEntry::Directory(name) => {
+            ArchiveEntry::Directory(name) => {
                 writer.add_directory(&name, SimpleFileOptions::default())?;
             }
-            ZipEntry::File(name, data) => {
+            ArchiveEntry::File(name, data) => {
                 writer.start_file(&name, options)?;
                 writer.write_all(&data)?;
             }
@@ -263,7 +253,14 @@ where
 /// Returns Ok(None) if the file should be skipped (Skip mode and file exists).
 fn resolve_output_path(input: &Path, config: &OptimizeConfig) -> Result<Option<PathBuf>> {
     let stem = input.file_stem().unwrap_or_default().to_string_lossy();
-    let ext = input.extension().unwrap_or_default().to_string_lossy();
+    let ext = match archive_kind(input) {
+        Some(ArchiveKind::Rar) => "cbz".to_owned(),
+        _ => input
+            .extension()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .into_owned(),
+    };
     let filename = format!("{}{}.{}", stem, config.output_suffix, ext);
     let base_path = match &config.output_dir {
         Some(dir) => dir.join(&filename),
@@ -315,4 +312,51 @@ fn num_cpus() -> usize {
     std::thread::available_parallelism()
         .map(|n| n.get())
         .unwrap_or(4)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_output_path;
+    use crate::{OptimizeConfig, OverwriteMode};
+    use std::path::{Path, PathBuf};
+
+    #[test]
+    fn rar_and_cbr_outputs_use_cbz_extension() {
+        let mut config = OptimizeConfig::default();
+        config.output_dir = Some(PathBuf::from("test-output"));
+        config.overwrite_mode = OverwriteMode::Overwrite;
+
+        assert_eq!(
+            resolve_output_path(Path::new("book.rar"), &config)
+                .unwrap()
+                .unwrap(),
+            PathBuf::from("test-output/book_new.cbz")
+        );
+        assert_eq!(
+            resolve_output_path(Path::new("book.CBR"), &config)
+                .unwrap()
+                .unwrap(),
+            PathBuf::from("test-output/book_new.cbz")
+        );
+    }
+
+    #[test]
+    fn zip_and_cbz_outputs_preserve_their_existing_extensions() {
+        let mut config = OptimizeConfig::default();
+        config.output_dir = Some(PathBuf::from("test-output"));
+        config.overwrite_mode = OverwriteMode::Overwrite;
+
+        assert_eq!(
+            resolve_output_path(Path::new("book.zip"), &config)
+                .unwrap()
+                .unwrap(),
+            PathBuf::from("test-output/book_new.zip")
+        );
+        assert_eq!(
+            resolve_output_path(Path::new("book.cbz"), &config)
+                .unwrap()
+                .unwrap(),
+            PathBuf::from("test-output/book_new.cbz")
+        );
+    }
 }

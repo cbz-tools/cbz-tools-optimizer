@@ -7,7 +7,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.1.5"
+version = "0.1.6"
 edition = "2021"
 authors = ["cbz-tools"]
 license = "MIT"
@@ -35,6 +35,8 @@ webp-anim = "0.1.0"
 rayon = "1.10"
 # ZIP
 zip = { version = "2.2", default-features = false, features = ["deflate"] }
+# RAR input (UnRAR backend; enabled by the CLI and GUI crates)
+unrar = "0.5"
 # Error handling
 anyhow = "1.0"
 thiserror = "1.0"

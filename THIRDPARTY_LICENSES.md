@@ -4,6 +4,15 @@ This file documents the third-party native components distributed with release a
 It is not an exhaustive notice for Rust crate dependencies; those are recorded in `Cargo.lock`
 and, where needed, in a generated dependency-license report.
 
+## UnRAR DLL
+
+- Purpose: RAR/CBR archive input through the UnRAR backend
+- Source managed in Git: `third_party/unrar/x64/UnRAR64.dll`
+- Distribution: `UnRAR64.dll` is placed beside the executables in Windows release archives
+- Loading: Checked and loaded lazily when a RAR/CBR input is opened
+- Scope: RAR archive handling only; no RAR-compatible archive writing
+- Release archives include the license text at `third_party/unrar/LICENSE.txt`
+
 ## dav1d DLL
 
 - Purpose: Runtime dependency for AVIF decoding through `image/avif-native`

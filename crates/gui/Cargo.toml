@@ -10,7 +10,7 @@ name = "cbz-opt-gui"
 path = "src/main.rs"
 
 [dependencies]
-cbz-tools-optimizer-core = { path = "../core" }
+cbz-tools-optimizer-core = { path = "../core", features = ["rar"] }
 anyhow.workspace = true
 serde.workspace = true
 serde_json.workspace = true

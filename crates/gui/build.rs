@@ -1,11 +1,14 @@
 fn main() {
     #[cfg(target_os = "windows")]
     {
+        println!("cargo:rustc-link-lib=advapi32");
         let manifest_dir = std::path::PathBuf::from(
             std::env::var_os("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR is set by Cargo"),
         );
         let dav1d_dll = manifest_dir.join("../../third_party/dav1d/dav1d.dll");
         println!("cargo:rerun-if-changed={}", dav1d_dll.display());
+        let unrar_dll = manifest_dir.join("../../third_party/unrar/x64/UnRAR64.dll");
+        println!("cargo:rerun-if-changed={}", unrar_dll.display());
 
         // OUT_DIR is target/<profile>/build/<crate-hash>/out. Put the runtime
         // dependency in the matching target/<profile> directory beside the EXE.
@@ -21,6 +24,15 @@ fn main() {
                 "failed to copy {} to {}: {error}",
                 dav1d_dll.display(),
                 destination.display()
+            )
+        });
+
+        let unrar_destination = executable_dir.join("UnRAR64.dll");
+        std::fs::copy(&unrar_dll, &unrar_destination).unwrap_or_else(|error| {
+            panic!(
+                "failed to copy {} to {}: {error}",
+                unrar_dll.display(),
+                unrar_destination.display()
             )
         });
 

@@ -47,10 +47,12 @@ New-Item -ItemType Directory -Force -Path $stageDir | Out-Null
 Copy-File (Join-Path $Workspace "target/x86_64-pc-windows-msvc/release/cbz-opt.exe") (Join-Path $stageDir "cbz-opt.exe")
 Copy-File (Join-Path $Workspace "target/x86_64-pc-windows-msvc/release/cbz-opt-gui.exe") (Join-Path $stageDir "cbz-opt-gui.exe")
 Copy-File (Join-Path $Workspace "third_party/dav1d/dav1d.dll") (Join-Path $stageDir "dav1d.dll")
+Copy-File (Join-Path $Workspace "third_party/unrar/x64/UnRAR64.dll") (Join-Path $stageDir "UnRAR64.dll")
 Copy-File (Join-Path $Workspace "README.md") (Join-Path $stageDir "README.md")
 Copy-File (Join-Path $Workspace "LICENSE") (Join-Path $stageDir "LICENSE")
 Copy-File (Join-Path $Workspace "THIRDPARTY_LICENSES.md") (Join-Path $stageDir "THIRDPARTY_LICENSES.md")
 Copy-File (Join-Path $Workspace "third_party/dav1d/LICENSE") (Join-Path $stageDir "third_party/dav1d/LICENSE")
+Copy-File (Join-Path $Workspace "third_party/unrar/LICENSE.txt") (Join-Path $stageDir "third_party/unrar/LICENSE.txt")
 Copy-File (Join-Path $Workspace "third_party/svt-av1/LICENSE") (Join-Path $stageDir "third_party/svt-av1/LICENSE")
 Copy-File (Join-Path $Workspace "third_party/shiguredo_svt_av1/LICENSE") (Join-Path $stageDir "third_party/shiguredo_svt_av1/LICENSE")
 

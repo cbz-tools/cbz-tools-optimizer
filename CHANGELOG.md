@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.6] - 2026-08-02
+
+### Added
+
+- RAR/CBR input support using the companion viewer's UnRAR handling, with optimized output written as CBZ.
+- Windows release packages now include the UnRAR runtime DLL and its license text.
+
+---
+
 ## [0.1.5] - 2026-08-01
 
 ### Added

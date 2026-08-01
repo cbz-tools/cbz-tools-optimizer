@@ -10,7 +10,7 @@ name = "cbz-opt"
 path = "src/main.rs"
 
 [dependencies]
-cbz-tools-optimizer-core = { path = "../core", features = ["clap"] }
+cbz-tools-optimizer-core = { path = "../core", features = ["clap", "rar"] }
 anyhow.workspace = true
 log.workspace = true
 env_logger.workspace = true

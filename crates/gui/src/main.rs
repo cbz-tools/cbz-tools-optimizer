@@ -17,9 +17,10 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 use cbz_tools_optimizer_core::{
-    format_elapsed, format_size, AnimatedWebpEncoding, AnimatedWebpKeyframePolicy,
-    AnimatedWebpOptions, AnimatedWebpOutputPolicy, AnimatedWebpResizeFilter, LogMode,
-    OptimizeConfig, OutputFormat, OverwriteMode, ProgressEvent, SizePreset,
+    archive::is_supported_archive_path, format_elapsed, format_size, AnimatedWebpEncoding,
+    AnimatedWebpKeyframePolicy, AnimatedWebpOptions, AnimatedWebpOutputPolicy,
+    AnimatedWebpResizeFilter, LogMode, OptimizeConfig, OutputFormat, OverwriteMode, ProgressEvent,
+    SizePreset,
 };
 use crossbeam_channel::{unbounded, Receiver};
 use eframe::egui;
@@ -380,7 +381,7 @@ impl App {
     }
 
     fn start_processing(&mut self, ctx: &egui::Context) {
-        // Expand folder entries into ZIP/CBZ files (1 level only)
+        // Expand folder entries into supported archive files (1 level only)
         let mut expanded: Vec<PathBuf> = Vec::new();
         for entry in &self.files {
             if entry.path.is_dir() {
@@ -424,11 +425,11 @@ impl App {
         let ctx2 = ctx.clone();
 
         thread::spawn(move || {
-            // Keep a clone of ctx2 for use after process_zips (which moves ctx2 into closure)
+            // Keep a clone of ctx2 for use after process_archives (which moves ctx2 into closure)
             let ctx_final = ctx2.clone();
             let t0 = std::time::Instant::now();
 
-            cbz_tools_optimizer_core::processor::process_zips(&paths, &config, move |event| {
+            cbz_tools_optimizer_core::processor::process_archives(&paths, &config, move |event| {
                 let update = match event {
                     ProgressEvent::ZipStarted { path, .. } => {
                         Some(StatusUpdate::Processing(PathBuf::from(&path)))
@@ -762,7 +763,7 @@ impl eframe::App for App {
                     .clicked()
                 {
                     if let Some(paths) = rfd::FileDialog::new()
-                        .add_filter("ZIP/CBZ", &["zip", "cbz"])
+                        .add_filter("ZIP/CBZ/RAR/CBR", &["zip", "cbz", "rar", "cbr"])
                         .pick_files()
                     {
                         for p in paths {
@@ -1249,8 +1250,5 @@ fn format_completion(input_bytes: u64, output_bytes: u64, elapsed: std::time::Du
 }
 
 fn is_archive_ext(path: &Path) -> bool {
-    matches!(
-        path.extension().and_then(|e| e.to_str()).unwrap_or(""),
-        "zip" | "cbz" | "ZIP" | "CBZ"
-    )
+    is_supported_archive_path(path)
 }

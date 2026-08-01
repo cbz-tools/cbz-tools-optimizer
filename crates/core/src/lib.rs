@@ -1,4 +1,5 @@
 pub mod animated_webp;
+pub mod archive;
 pub mod processor;
 pub mod resize;
 
