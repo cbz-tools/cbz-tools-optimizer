@@ -139,13 +139,13 @@ cbz-opt --preset ipad --output-format webp input.cbz</code></pre>
       <tr><td>JPEG</td><td>Yes</td><td>Yes</td></tr>
       <tr><td>PNG</td><td>Yes</td><td>Yes</td></tr>
       <tr><td>WebP (static)</td><td>Yes</td><td>Yes</td></tr>
-      <tr><td>WebP (animated)</td><td>Detected, skipped</td><td>—</td></tr>
+      <tr><td>WebP (animated)</td><td>Yes</td><td>Re-encoded as animated WebP</td></tr>
       <tr><td>AVIF</td><td>—</td><td>Yes</td></tr>
       <tr><td>BMP</td><td>Yes</td><td>Converted</td></tr>
       <tr><td>TIFF</td><td>Yes</td><td>Converted</td></tr>
       <tr><td>GIF</td><td>Skipped</td><td>—</td></tr>
     </table>
-    <p style="margin-top:8px;font-size:0.9rem;color:#586069;">AVIF is supported as output only (<code>--output-format avif</code>). Use <code>--convert-only</code> to convert format without resizing — when set, <code>--preset</code> / <code>-W</code> / <code>-H</code> are ignored.</p>
+    <p style="margin-top:8px;font-size:0.9rem;color:#586069;">Animated WebP entries preserve timing, loop count, and ANIM background color. Oversized entries are resized and encoded as high-quality lossy WebP; they stay WebP regardless of output format or convert-only. GIF-containing archives are skipped.</p>
 
     <h2>License</h2>
     <p>MIT — free to use, modify, and distribute.</p>

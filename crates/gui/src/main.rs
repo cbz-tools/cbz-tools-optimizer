@@ -17,8 +17,9 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 use cbz_tools_optimizer_core::{
-    format_elapsed, format_size, LogMode, OptimizeConfig, OutputFormat, OverwriteMode,
-    ProgressEvent, SizePreset,
+    format_elapsed, format_size, AnimatedWebpEncoding, AnimatedWebpKeyframePolicy,
+    AnimatedWebpOptions, AnimatedWebpOutputPolicy, AnimatedWebpResizeFilter, LogMode,
+    OptimizeConfig, OutputFormat, OverwriteMode, ProgressEvent, SizePreset,
 };
 use crossbeam_channel::{unbounded, Receiver};
 use eframe::egui;
@@ -124,6 +125,32 @@ fn btn_label(icon: &str, label: &str) -> egui::text::LayoutJob {
     job
 }
 
+fn parse_animated_webp_filter(value: &str) -> AnimatedWebpResizeFilter {
+    match value {
+        "catmull-rom" => AnimatedWebpResizeFilter::CatmullRom,
+        "lanczos3" => AnimatedWebpResizeFilter::Lanczos3,
+        _ => AnimatedWebpResizeFilter::Bilinear,
+    }
+}
+
+fn parse_animated_webp_keyframes(value: &str) -> AnimatedWebpKeyframePolicy {
+    match value {
+        "disabled" => AnimatedWebpKeyframePolicy::Disabled,
+        _ => AnimatedWebpKeyframePolicy::Bounded,
+    }
+}
+
+fn parse_animated_webp_output_policy(value: &str) -> AnimatedWebpOutputPolicy {
+    match value {
+        "keep-original-if-larger" => AnimatedWebpOutputPolicy::KeepOriginalIfLarger,
+        _ => AnimatedWebpOutputPolicy::AlwaysUseEncoded,
+    }
+}
+
+fn animated_webp_keyframes_valid(policy: &str, kmin: i32, kmax: i32) -> bool {
+    policy == "disabled" || (kmin >= 0 && kmax >= 2 && kmin < kmax && kmin >= kmax / 2 + 1)
+}
+
 // ---------------------------------------------------------------------------
 // main
 // ---------------------------------------------------------------------------
@@ -181,6 +208,21 @@ enum FileStatus {
     Processing,
     Skipped(String),
     Error(String),
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SettingsTab {
+    Common,
+    AnimatedWebp,
+}
+
+impl SettingsTab {
+    fn all(strings: &lang::Strings) -> [(Self, &'static str); 2] {
+        [
+            (Self::Common, strings.common_settings_tab),
+            (Self::AnimatedWebp, strings.animated_webp_tab),
+        ]
+    }
 }
 
 struct FileEntry {
@@ -309,6 +351,22 @@ impl App {
             jpeg_quality: self.config.jpeg_quality,
             output_format,
             convert_only,
+            animated_webp: AnimatedWebpOptions {
+                encoding: AnimatedWebpEncoding::Lossy {
+                    quality: f32::from(self.config.jpeg_quality),
+                    method: 4,
+                },
+                resize_filter: parse_animated_webp_filter(&self.config.animated_webp_filter),
+                keyframe_policy: parse_animated_webp_keyframes(
+                    &self.config.animated_webp_keyframes,
+                ),
+                kmin: self.config.animated_webp_kmin,
+                kmax: self.config.animated_webp_kmax,
+                output_policy: parse_animated_webp_output_policy(
+                    &self.config.animated_webp_output_policy,
+                ),
+                ..Default::default()
+            },
             output_dir: if self.config.output_dir.is_empty() {
                 None
             } else {
@@ -768,145 +826,340 @@ impl eframe::App for App {
             egui::Window::new(s.settings)
                 .collapsible(false)
                 .resizable(false)
+                .default_size(egui::vec2(526.0, 398.0))
+                .min_width(526.0)
                 .pivot(egui::Align2::CENTER_CENTER)
                 .default_pos(ctx.screen_rect().center())
                 .open(&mut open)
                 .show(ctx, |ui| {
-                    let d = &mut self.settings_draft;
-
-                    egui::Grid::new("settings_grid")
-                        .num_columns(2)
-                        .spacing([8.0, 4.0])
-                        .show(ui, |ui| {
-                            let s2 = strings(&self.lang);
-
-                            // Language
-                            let lang_display = match d.lang.as_str() {
-                                "zh" => "中文",
-                                "ja" => "日本語",
-                                _ => "En",
-                            };
-                            ui.label(s2.lang_label);
-                            egui::ComboBox::from_id_salt("lang_combo")
-                                .selected_text(lang_display)
-                                .show_ui(ui, |ui| {
-                                    ui.selectable_value(&mut d.lang, "en".into(), "En");
-                                    ui.selectable_value(&mut d.lang, "zh".into(), "中文");
-                                    ui.selectable_value(&mut d.lang, "ja".into(), "日本語");
-                                });
-                            ui.end_row();
-
-                            // Preset (disabled when convert_only)
-                            ui.label(s2.preset_label);
-                            ui.add_enabled_ui(!d.convert_only, |ui| {
-                                egui::ComboBox::from_id_salt("preset_combo")
-                                    .selected_text(&d.preset)
-                                    .show_ui(ui, |ui| {
-                                        for p in &[
-                                            "ipad", "ipad-air", "ipad-pro", "kindle", "hd",
-                                            "full-hd", "four-k", "custom",
-                                        ] {
-                                            ui.selectable_value(&mut d.preset, p.to_string(), *p);
-                                        }
-                                    });
-                            });
-                            ui.end_row();
-
-                            // Width / Height (editable for custom only, disabled when convert_only)
-                            let is_custom = d.preset == "custom";
-                            ui.label(s2.width_label);
-                            ui.add_enabled(
-                                is_custom && !d.convert_only,
-                                egui::DragValue::new(&mut d.max_width).range(1..=65535),
-                            );
-                            ui.end_row();
-
-                            ui.label(s2.height_label);
-                            ui.add_enabled(
-                                is_custom && !d.convert_only,
-                                egui::DragValue::new(&mut d.max_height).range(1..=65535),
-                            );
-                            ui.end_row();
-
-                            // Format
-                            ui.label(s2.format_label);
-                            egui::ComboBox::from_id_salt("format_combo")
-                                .selected_text(&d.output_format)
-                                .show_ui(ui, |ui| {
-                                    for f in &["jpeg", "png", "webp", "avif", "original"] {
-                                        ui.selectable_value(
-                                            &mut d.output_format,
-                                            f.to_string(),
-                                            *f,
-                                        );
-                                    }
-                                });
-                            ui.end_row();
-
-                            // Convert only
-                            ui.label(s2.convert_only_label);
-                            ui.checkbox(&mut d.convert_only, "");
-                            ui.end_row();
-
-                            // Quality: applies to JPEG output, or Original format when not
-                            // convert_only (JPEG inputs may be re-encoded)
-                            let quality_active = d.output_format == "jpeg"
-                                || (d.output_format == "original" && !d.convert_only);
-                            ui.label(s2.quality_label);
-                            ui.add_enabled(
-                                quality_active,
-                                egui::Slider::new(&mut d.jpeg_quality, 1..=100),
-                            );
-                            ui.end_row();
-
-                            // Suffix
-                            ui.label(s2.suffix_label);
-                            ui.text_edit_singleline(&mut d.suffix);
-                            ui.end_row();
-
-                            // Output Dir
-                            ui.label(s2.output_dir_label);
-                            ui.text_edit_singleline(&mut d.output_dir);
-                            ui.end_row();
-
-                            // Threads
-                            ui.label(s2.threads_label);
-                            ui.horizontal(|ui| {
-                                ui.add(egui::DragValue::new(&mut d.threads).range(0..=256));
-                                ui.label("0 = Auto");
-                            });
-                            ui.end_row();
-
-                            // Overwrite Mode
-                            ui.label(s2.overwrite_label);
-                            egui::ComboBox::from_id_salt("overwrite_combo")
-                                .selected_text(&d.overwrite_mode)
-                                .show_ui(ui, |ui| {
-                                    for m in &["skip", "overwrite", "rename"] {
-                                        ui.selectable_value(
-                                            &mut d.overwrite_mode,
-                                            m.to_string(),
-                                            *m,
-                                        );
-                                    }
-                                });
-                            ui.end_row();
-
-                            // Log Mode
-                            ui.label(s2.log_mode_label);
-                            egui::ComboBox::from_id_salt("logmode_combo")
-                                .selected_text(&d.log_mode)
-                                .show_ui(ui, |ui| {
-                                    for m in &["cli", "silent", "both", "file"] {
-                                        ui.selectable_value(&mut d.log_mode, m.to_string(), *m);
-                                    }
-                                });
-                            ui.end_row();
-                        });
-
-                    ui.separator();
+                    let s2 = strings(&self.lang);
+                    let mut selected_tab = ctx.memory_mut(|memory| {
+                        memory
+                            .data
+                            .get_temp::<SettingsTab>(egui::Id::new("cbz_opt_settings_tab"))
+                            .unwrap_or(SettingsTab::Common)
+                    });
                     ui.horizontal(|ui| {
-                        if ui.button("OK").clicked() {
+                        for (tab, label) in SettingsTab::all(&s2) {
+                            if ui
+                                .add_sized(
+                                    [150.0, 28.0],
+                                    egui::Button::new(label).selected(selected_tab == tab),
+                                )
+                                .clicked()
+                            {
+                                selected_tab = tab;
+                            }
+                        }
+                    });
+                    ui.add_space(6.0);
+                    ui.separator();
+                    ctx.memory_mut(|memory| {
+                        memory
+                            .data
+                            .insert_temp(egui::Id::new("cbz_opt_settings_tab"), selected_tab);
+                    });
+
+                    // Reserve the footer row so the action buttons stay attached to
+                    // the bottom edge while the settings content scrolls above it.
+                    const SETTINGS_FOOTER_HEIGHT: f32 = 34.0;
+                    let scroll_height = (ui.available_height() - SETTINGS_FOOTER_HEIGHT).max(0.0);
+                    ui.set_min_width(494.0);
+                    egui::ScrollArea::vertical()
+                        .auto_shrink([false, false])
+                        .max_height(scroll_height)
+                        .show(ui, |ui| {
+                            let d = &mut self.settings_draft;
+
+                            egui::Grid::new("settings_grid")
+                                .num_columns(2)
+                                .spacing([8.0, 4.0])
+                                .show(ui, |ui| {
+                                    if selected_tab == SettingsTab::Common {
+                                        // Language
+                                        let lang_display = match d.lang.as_str() {
+                                            "zh" => "中文",
+                                            "ja" => "日本語",
+                                            _ => "En",
+                                        };
+                                        ui.label(s2.lang_label);
+                                        egui::ComboBox::from_id_salt("lang_combo")
+                                            .selected_text(lang_display)
+                                            .show_ui(ui, |ui| {
+                                                ui.selectable_value(&mut d.lang, "en".into(), "En");
+                                                ui.selectable_value(
+                                                    &mut d.lang,
+                                                    "zh".into(),
+                                                    "中文",
+                                                );
+                                                ui.selectable_value(
+                                                    &mut d.lang,
+                                                    "ja".into(),
+                                                    "日本語",
+                                                );
+                                            });
+                                        ui.end_row();
+
+                                        // Preset (disabled when convert_only)
+                                        ui.label(s2.preset_label);
+                                        ui.add_enabled_ui(!d.convert_only, |ui| {
+                                            egui::ComboBox::from_id_salt("preset_combo")
+                                                .selected_text(&d.preset)
+                                                .show_ui(ui, |ui| {
+                                                    for p in &[
+                                                        "ipad", "ipad-air", "ipad-pro", "kindle",
+                                                        "hd", "full-hd", "four-k", "custom",
+                                                    ] {
+                                                        ui.selectable_value(
+                                                            &mut d.preset,
+                                                            p.to_string(),
+                                                            *p,
+                                                        );
+                                                    }
+                                                });
+                                        });
+                                        ui.end_row();
+
+                                        // Width / Height (editable for custom only, disabled when convert_only)
+                                        let is_custom = d.preset == "custom";
+                                        ui.label(s2.width_label);
+                                        ui.add_enabled(
+                                            is_custom && !d.convert_only,
+                                            egui::DragValue::new(&mut d.max_width).range(1..=65535),
+                                        );
+                                        ui.end_row();
+
+                                        ui.label(s2.height_label);
+                                        ui.add_enabled(
+                                            is_custom && !d.convert_only,
+                                            egui::DragValue::new(&mut d.max_height)
+                                                .range(1..=65535),
+                                        );
+                                        ui.end_row();
+
+                                        // Format
+                                        ui.label(s2.format_label);
+                                        egui::ComboBox::from_id_salt("format_combo")
+                                            .selected_text(&d.output_format)
+                                            .show_ui(ui, |ui| {
+                                                for f in
+                                                    &["jpeg", "png", "webp", "avif", "original"]
+                                                {
+                                                    ui.selectable_value(
+                                                        &mut d.output_format,
+                                                        f.to_string(),
+                                                        *f,
+                                                    );
+                                                }
+                                            });
+                                        ui.end_row();
+
+                                        // Convert only
+                                        ui.label(s2.convert_only_label);
+                                        ui.checkbox(&mut d.convert_only, "");
+                                        ui.end_row();
+
+                                        // Quality: applies to JPEG output, or Original format when not
+                                        // convert_only (JPEG inputs may be re-encoded)
+                                        let quality_active = d.output_format == "jpeg"
+                                            || (d.output_format == "original" && !d.convert_only);
+                                        ui.label(s2.quality_label);
+                                        ui.add_enabled(
+                                            quality_active,
+                                            egui::Slider::new(&mut d.jpeg_quality, 1..=100),
+                                        );
+                                        ui.end_row();
+                                    }
+
+                                    if selected_tab == SettingsTab::AnimatedWebp {
+                                        // Animated WebP settings. The common quality setting is also used
+                                        // by the animation encoder.
+                                        let animated_filter_text = match d
+                                            .animated_webp_filter
+                                            .as_str()
+                                        {
+                                            "catmull-rom" => s2.animated_webp_filter_catmull_rom,
+                                            "lanczos3" => s2.animated_webp_filter_lanczos3,
+                                            _ => s2.animated_webp_filter_bilinear,
+                                        };
+                                        let animated_keyframes_text =
+                                            match d.animated_webp_keyframes.as_str() {
+                                                "disabled" => s2.animated_webp_keyframes_disabled,
+                                                _ => s2.animated_webp_keyframes_bounded,
+                                            };
+                                        let animated_output_text =
+                                            match d.animated_webp_output_policy.as_str() {
+                                                "keep-original-if-larger" => {
+                                                    s2.animated_webp_output_keep
+                                                }
+                                                _ => s2.animated_webp_output_always,
+                                            };
+                                        let keyframes_bounded =
+                                            d.animated_webp_keyframes == "bounded";
+                                        let keyframes_valid = animated_webp_keyframes_valid(
+                                            &d.animated_webp_keyframes,
+                                            d.animated_webp_kmin,
+                                            d.animated_webp_kmax,
+                                        );
+
+                                        ui.label(s2.animated_webp_filter_label);
+                                        egui::ComboBox::from_id_salt("animated_webp_filter_combo")
+                                            .selected_text(animated_filter_text)
+                                            .show_ui(ui, |ui| {
+                                                ui.selectable_value(
+                                                    &mut d.animated_webp_filter,
+                                                    "bilinear".into(),
+                                                    s2.animated_webp_filter_bilinear,
+                                                );
+                                                ui.selectable_value(
+                                                    &mut d.animated_webp_filter,
+                                                    "catmull-rom".into(),
+                                                    s2.animated_webp_filter_catmull_rom,
+                                                );
+                                                ui.selectable_value(
+                                                    &mut d.animated_webp_filter,
+                                                    "lanczos3".into(),
+                                                    s2.animated_webp_filter_lanczos3,
+                                                );
+                                            });
+                                        ui.end_row();
+
+                                        ui.label(s2.animated_webp_keyframes_label);
+                                        egui::ComboBox::from_id_salt(
+                                            "animated_webp_keyframes_combo",
+                                        )
+                                        .selected_text(animated_keyframes_text)
+                                        .show_ui(
+                                            ui,
+                                            |ui| {
+                                                ui.selectable_value(
+                                                    &mut d.animated_webp_keyframes,
+                                                    "bounded".into(),
+                                                    s2.animated_webp_keyframes_bounded,
+                                                );
+                                                ui.selectable_value(
+                                                    &mut d.animated_webp_keyframes,
+                                                    "disabled".into(),
+                                                    s2.animated_webp_keyframes_disabled,
+                                                );
+                                            },
+                                        );
+                                        ui.end_row();
+
+                                        ui.label(s2.animated_webp_kmin_label);
+                                        ui.add_enabled(
+                                            keyframes_bounded,
+                                            egui::DragValue::new(&mut d.animated_webp_kmin)
+                                                .range(0..=65535),
+                                        );
+                                        ui.end_row();
+
+                                        ui.label(s2.animated_webp_kmax_label);
+                                        ui.add_enabled(
+                                            keyframes_bounded,
+                                            egui::DragValue::new(&mut d.animated_webp_kmax)
+                                                .range(2..=65535),
+                                        );
+                                        ui.end_row();
+
+                                        if !keyframes_valid {
+                                            ui.label("");
+                                            ui.colored_label(
+                                                egui::Color32::from_rgb(180, 60, 40),
+                                                s2.animated_webp_keyframes_invalid,
+                                            );
+                                            ui.end_row();
+                                        }
+
+                                        ui.label(s2.animated_webp_output_policy_label);
+                                        egui::ComboBox::from_id_salt(
+                                            "animated_webp_output_policy_combo",
+                                        )
+                                        .selected_text(animated_output_text)
+                                        .show_ui(
+                                            ui,
+                                            |ui| {
+                                                ui.selectable_value(
+                                                    &mut d.animated_webp_output_policy,
+                                                    "always-use-encoded".into(),
+                                                    s2.animated_webp_output_always,
+                                                );
+                                                ui.selectable_value(
+                                                    &mut d.animated_webp_output_policy,
+                                                    "keep-original-if-larger".into(),
+                                                    s2.animated_webp_output_keep,
+                                                );
+                                            },
+                                        );
+                                        ui.end_row();
+                                    }
+
+                                    if selected_tab == SettingsTab::Common {
+                                        // Suffix
+                                        ui.label(s2.suffix_label);
+                                        ui.text_edit_singleline(&mut d.suffix);
+                                        ui.end_row();
+
+                                        // Output Dir
+                                        ui.label(s2.output_dir_label);
+                                        ui.text_edit_singleline(&mut d.output_dir);
+                                        ui.end_row();
+
+                                        // Threads
+                                        ui.label(s2.threads_label);
+                                        ui.horizontal(|ui| {
+                                            ui.add(
+                                                egui::DragValue::new(&mut d.threads).range(0..=256),
+                                            );
+                                            ui.label("0:Auto");
+                                        });
+                                        ui.end_row();
+
+                                        // Overwrite Mode
+                                        ui.label(s2.overwrite_label);
+                                        egui::ComboBox::from_id_salt("overwrite_combo")
+                                            .selected_text(&d.overwrite_mode)
+                                            .show_ui(ui, |ui| {
+                                                for m in &["skip", "overwrite", "rename"] {
+                                                    ui.selectable_value(
+                                                        &mut d.overwrite_mode,
+                                                        m.to_string(),
+                                                        *m,
+                                                    );
+                                                }
+                                            });
+                                        ui.end_row();
+
+                                        // Log Mode
+                                        ui.label(s2.log_mode_label);
+                                        egui::ComboBox::from_id_salt("logmode_combo")
+                                            .selected_text(&d.log_mode)
+                                            .show_ui(ui, |ui| {
+                                                for m in &["cli", "silent", "both", "file"] {
+                                                    ui.selectable_value(
+                                                        &mut d.log_mode,
+                                                        m.to_string(),
+                                                        *m,
+                                                    );
+                                                }
+                                            });
+                                        ui.end_row();
+                                    }
+                                });
+                        });
+                    let footer_spacer = (ui.available_height() - SETTINGS_FOOTER_HEIGHT).max(0.0);
+                    ui.add_space(footer_spacer);
+                    ui.separator();
+                    let keyframes_valid = animated_webp_keyframes_valid(
+                        &self.settings_draft.animated_webp_keyframes,
+                        self.settings_draft.animated_webp_kmin,
+                        self.settings_draft.animated_webp_kmax,
+                    );
+                    ui.horizontal(|ui| {
+                        if ui
+                            .add_enabled(keyframes_valid, egui::Button::new("OK"))
+                            .clicked()
+                        {
                             self.config = self.settings_draft.clone();
                             self.lang = match self.config.lang.as_str() {
                                 "zh" => Lang::Zh,

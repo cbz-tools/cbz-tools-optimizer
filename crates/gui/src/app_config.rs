@@ -9,6 +9,16 @@ pub struct AppConfig {
     pub jpeg_quality: u8,
     pub output_format: String,
     pub convert_only: bool,
+    #[serde(default = "default_animated_webp_filter")]
+    pub animated_webp_filter: String,
+    #[serde(default = "default_animated_webp_keyframes")]
+    pub animated_webp_keyframes: String,
+    #[serde(default = "default_animated_webp_kmin")]
+    pub animated_webp_kmin: i32,
+    #[serde(default = "default_animated_webp_kmax")]
+    pub animated_webp_kmax: i32,
+    #[serde(default = "default_animated_webp_output_policy")]
+    pub animated_webp_output_policy: String,
     pub suffix: String,
     pub output_dir: String,
     pub threads: usize,
@@ -28,6 +38,11 @@ impl Default for AppConfig {
             jpeg_quality: 85,
             output_format: "jpeg".into(),
             convert_only: false,
+            animated_webp_filter: default_animated_webp_filter(),
+            animated_webp_keyframes: default_animated_webp_keyframes(),
+            animated_webp_kmin: default_animated_webp_kmin(),
+            animated_webp_kmax: default_animated_webp_kmax(),
+            animated_webp_output_policy: default_animated_webp_output_policy(),
             suffix: "_new".into(),
             output_dir: String::new(),
             threads: 0,
@@ -37,6 +52,26 @@ impl Default for AppConfig {
             window_y: None,
         }
     }
+}
+
+fn default_animated_webp_filter() -> String {
+    "bilinear".into()
+}
+
+fn default_animated_webp_keyframes() -> String {
+    "bounded".into()
+}
+
+fn default_animated_webp_kmin() -> i32 {
+    3
+}
+
+fn default_animated_webp_kmax() -> i32 {
+    5
+}
+
+fn default_animated_webp_output_policy() -> String {
+    "always-use-encoded".into()
 }
 
 fn config_path() -> PathBuf {

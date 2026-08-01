@@ -6,7 +6,7 @@ use anyhow::{Context, Result};
 use rayon::prelude::*;
 use zip::write::SimpleFileOptions;
 
-use crate::resize::{is_animated_webp, is_image, resize_image_bytes};
+use crate::resize::{is_image, resize_image_bytes};
 use crate::{OptimizeConfig, OverwriteMode, ProgressEvent};
 
 /// Outcome of processing a single ZIP
@@ -169,19 +169,17 @@ where
         .collect::<Result<_, zip::result::ZipError>>()
         .context("Failed to read ZIP entries")?;
 
-    // Check for animated WebP or GIF before processing (file entries only)
-    let has_unsupported_anim = entries.iter().any(|e| match e {
-        ZipEntry::File(name, data) => {
-            let lower = name.to_lowercase();
-            lower.ends_with(".gif") || (lower.ends_with(".webp") && is_animated_webp(data))
-        }
+    // GIF animation remains unsupported. Animated WebP is handled per entry by
+    // the dedicated optimization path, so it must not skip the whole archive.
+    let has_unsupported_animation = entries.iter().any(|e| match e {
+        ZipEntry::File(name, _) => name.to_lowercase().ends_with(".gif"),
         ZipEntry::Directory(_) => false,
     });
 
-    if has_unsupported_anim {
+    if has_unsupported_animation {
         on_progress(ProgressEvent::ZipSkipped {
             path: zip_path.display().to_string(),
-            reason: "Skipped: contains animated WebP or GIF".to_string(),
+            reason: "Skipped: contains GIF (animation is not supported)".to_string(),
         });
         return Ok(None);
     }

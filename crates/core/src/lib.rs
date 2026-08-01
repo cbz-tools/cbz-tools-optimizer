@@ -1,3 +1,4 @@
+pub mod animated_webp;
 pub mod processor;
 pub mod resize;
 
@@ -41,6 +42,151 @@ pub enum OutputFormat {
     Webp,
     /// Convert all images to AVIF
     Avif,
+}
+
+/// Product-level encoding settings for animated WebP entries.
+///
+/// Animated WebP remains WebP regardless of the archive's selected static
+/// output format. Its lossy quality is supplied from the product's common
+/// quality setting by each frontend.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct AnimatedWebpOptions {
+    /// Compression mode and quality for the animation encoder.
+    pub encoding: AnimatedWebpEncoding,
+    /// Interpolation used only when the animation canvas is resized.
+    #[serde(default)]
+    pub resize_filter: AnimatedWebpResizeFilter,
+    /// Use libwebp's sharp RGB-to-YUV conversion for lossy animation output.
+    pub use_sharp_yuv: bool,
+    /// Let libwebp automatically choose the in-loop filtering strength.
+    pub autofilter: bool,
+    pub filter_strength: i32,
+    pub filter_sharpness: i32,
+    pub filter_type: i32,
+    /// Alpha compression quality (0-100; 100 is lossless alpha).
+    pub alpha_quality: u8,
+    /// libwebp preprocessing mode. Zero disables temporal-noise-prone dithering.
+    pub preprocessing: u8,
+    /// Allow libwebp to select lossless or lossy compression per animation frame.
+    pub allow_mixed: bool,
+    /// Enable libwebp internal encoder threading when available.
+    pub thread_level: bool,
+    /// Whether the encoder inserts regular independently decodable frames.
+    #[serde(default)]
+    pub keyframe_policy: AnimatedWebpKeyframePolicy,
+    pub kmin: i32,
+    pub kmax: i32,
+    /// Whether an encoded animation that grows in size is retained or rejected.
+    pub output_policy: AnimatedWebpOutputPolicy,
+    /// Maximum input bytes accepted for one animated WebP entry.
+    pub max_input_bytes: usize,
+    /// Maximum decoded canvas area accepted for one animated WebP entry.
+    pub max_canvas_pixels: u64,
+    /// Maximum stored frames accepted for one animated WebP entry.
+    pub max_frame_count: u32,
+    /// Maximum duration in milliseconds accepted for one animation sequence.
+    pub max_total_duration_ms: u64,
+    /// Maximum RGBA bytes accepted for one decoded frame.
+    pub max_frame_rgba_bytes: usize,
+    /// Maximum RGBA bytes allocated for one resized frame.
+    pub max_output_rgba_bytes: usize,
+}
+
+/// Compression mode for an animated WebP entry.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub enum AnimatedWebpEncoding {
+    Lossy { quality: f32, method: u8 },
+    Lossless { method: u8 },
+}
+
+/// Resampling filter used when an animated WebP needs geometric resizing.
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "clap", derive(clap::ValueEnum))]
+pub enum AnimatedWebpResizeFilter {
+    /// Fast and smooth; the compatibility default.
+    Bilinear,
+    /// Sharper bicubic interpolation, with a small risk of edge halos.
+    CatmullRom,
+    /// Highest-detail option; slowest and may ring on high-contrast edges.
+    Lanczos3,
+}
+
+/// Controls regular keyframe insertion for animated WebP output.
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "clap", derive(clap::ValueEnum))]
+pub enum AnimatedWebpKeyframePolicy {
+    /// Insert independently decodable frames within the configured interval.
+    Bounded,
+    /// Do not force periodic keyframes; min/max values are ignored.
+    Disabled,
+}
+
+impl Default for AnimatedWebpKeyframePolicy {
+    fn default() -> Self {
+        Self::Bounded
+    }
+}
+
+impl Default for AnimatedWebpResizeFilter {
+    fn default() -> Self {
+        Self::Bilinear
+    }
+}
+
+impl From<AnimatedWebpResizeFilter> for webp_anim::ResizeFilter {
+    fn from(value: AnimatedWebpResizeFilter) -> Self {
+        match value {
+            AnimatedWebpResizeFilter::Bilinear => Self::Bilinear,
+            AnimatedWebpResizeFilter::CatmullRom => Self::CatmullRom,
+            AnimatedWebpResizeFilter::Lanczos3 => Self::Lanczos3,
+        }
+    }
+}
+
+/// Output-size decision for an animated WebP entry.
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "clap", derive(clap::ValueEnum))]
+pub enum AnimatedWebpOutputPolicy {
+    /// Always write the newly encoded animation.
+    AlwaysUseEncoded,
+    /// Keep the original entry when encoding would increase its byte size.
+    KeepOriginalIfLarger,
+}
+
+impl Default for AnimatedWebpOptions {
+    fn default() -> Self {
+        Self {
+            // Resizing necessarily resamples pixels. Re-encode resized
+            // animations at high quality so the configured canvas bounds are
+            // honored without the extreme size growth of lossless animation.
+            encoding: AnimatedWebpEncoding::Lossy {
+                quality: 85.0,
+                method: 4,
+            },
+            resize_filter: AnimatedWebpResizeFilter::Bilinear,
+            use_sharp_yuv: true,
+            autofilter: false,
+            filter_strength: 20,
+            filter_sharpness: 0,
+            filter_type: 1,
+            alpha_quality: 100,
+            // Preprocessing mode 2 uses dithering. It is deliberately off to
+            // avoid frame-to-frame noise in animated content.
+            preprocessing: 0,
+            allow_mixed: false,
+            thread_level: false,
+            keyframe_policy: AnimatedWebpKeyframePolicy::Bounded,
+            kmin: 3,
+            kmax: 5,
+            output_policy: AnimatedWebpOutputPolicy::AlwaysUseEncoded,
+            max_input_bytes: 256 * 1024 * 1024,
+            max_canvas_pixels: 100_000_000,
+            max_frame_count: 10_000,
+            max_total_duration_ms: 60 * 60 * 1000,
+            max_frame_rgba_bytes: 400 * 1024 * 1024,
+            max_output_rgba_bytes: 400 * 1024 * 1024,
+        }
+    }
 }
 
 /// Size preset
@@ -108,6 +254,10 @@ pub struct OptimizeConfig {
     /// Convert format only — skip resize entirely.
     /// If input and output formats match, bytes are passed through without re-encoding.
     pub convert_only: bool,
+    /// Dedicated settings for animated WebP entries. They remain WebP and do
+    /// not use `output_format`, `jpeg_quality`, or `convert_only`.
+    #[serde(default)]
+    pub animated_webp: AnimatedWebpOptions,
     /// Log output mode
     pub log_mode: LogMode,
     /// Output file conflict resolution
@@ -135,6 +285,7 @@ impl Default for OptimizeConfig {
             threads: 0,
             output_format: OutputFormat::Jpeg,
             convert_only: false,
+            animated_webp: AnimatedWebpOptions::default(),
             log_mode: LogMode::Cli,
             overwrite_mode: OverwriteMode::Skip,
         }

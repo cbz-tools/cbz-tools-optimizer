@@ -81,12 +81,16 @@ cbz-opt --output-format jpeg --convert-only input.cbz
 | `--preset` | `ipad` | Size preset (see table below) |
 | `-W`, `--max-width` | — | Maximum width in pixels (`--preset custom` only) |
 | `-H`, `--max-height` | — | Maximum height in pixels (`--preset custom` only) |
-| `-q`, `--quality` | 85 | JPEG quality (1–100) — used when `--output-format jpeg`, or `original` without `--convert-only` (JPEG inputs may be re-encoded) |
+| `-q`, `--quality` | 85 | Lossy quality (1–100) — used by JPEG output and resized animated WebP |
 | `-s`, `--suffix` | `_new` | Output filename suffix |
 | `-o`, `--output-dir` | (same as input) | Output directory |
 | `-t`, `--threads` | 0 (auto) | Number of threads (0 = half of logical CPUs) |
 | `--output-format` | `jpeg` | Output image format: `jpeg` / `png` / `webp` / `avif` / `original` |
 | `--convert-only` | — | Convert format only — skip resize entirely. `--preset` / `-W` / `-H` are ignored. Same-format files are passed through without re-encoding (zero degradation) |
+| `--animated-webp-filter` | `bilinear` | Animated WebP resize interpolation: `bilinear` (fast/smooth), `catmull-rom` (sharper bicubic), or `lanczos3` (highest-detail comparison; slowest) |
+| `--animated-webp-keyframes` | `bounded` | Animated WebP keyframe policy: `bounded` uses the interval below; `disabled` does not force periodic keyframes and ignores `kmin` / `kmax` |
+| `--animated-webp-kmin` / `--animated-webp-kmax` | `3` / `5` | Minimum / maximum distance between animated-WebP key frames (`kmax >= 2`, `0 <= kmin < kmax`, `kmin >= kmax / 2 + 1`) |
+| `--animated-webp-output-policy` | `always-use-encoded` | Animated WebP output size policy: write the high-quality resized result (default), or use `keep-original-if-larger` to retain an oversized source entry instead |
 | `--log-mode` | `cli` | Log output: `cli` / `silent` / `both` / `file` |
 | `--overwrite-mode` | `skip` | Output conflict resolution: `skip` / `overwrite` / `rename` |
 | `--json` | — | Output progress as JSON lines (for scripting and automation) |
@@ -115,13 +119,13 @@ cbz-opt --output-format jpeg --convert-only input.cbz
 | JPEG | Yes | Yes |
 | PNG | Yes | Yes |
 | WebP (static) | Yes | Yes |
-| WebP (animated) | Detected, skipped | — |
+| WebP (animated) | Yes | Re-encoded as animated WebP |
 | AVIF | Yes | Yes |
 | BMP | Yes | Converted to output format |
 | TIFF | Yes | Converted to output format |
 | GIF | Skipped | — |
 
-Archives containing animated WebP or GIF are skipped entirely to preserve animations.  
+Animated WebP entries use a dedicated path: frame timing, loop count, and ANIM background color are preserved while frames may be resized. Entries already within the configured size bounds remain byte-identical; larger entries are resized with the selected interpolation and re-encoded as lossy `.webp` using the common `--quality` value (default 85, encoder method 4), independently of `--output-format` and `--convert-only`. Choose the resize filter with `--animated-webp-filter`; it is only used when a resize is actually required. `--animated-webp-keyframes bounded` (default) inserts independently decodable frames within the configured `kmin` / `kmax` interval. Choose `disabled` to avoid forced periodic keyframes; supplied `kmin` / `kmax` values are ignored. By default the resized result is written to honor the configured bounds; `--animated-webp-output-policy keep-original-if-larger` opts back into retaining an oversized source. GIF-containing archives are skipped.
 BMP and TIFF inputs are converted to the format specified by `--output-format` (default: `jpeg`).  
 AVIF is supported as both input and output (`--output-format avif`). AVIF decoding uses the bundled native `libdav1d` runtime on Windows.
 

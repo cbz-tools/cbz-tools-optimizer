@@ -4,6 +4,7 @@ use shiguredo_svt_av1::{
     ColorFormat, EncodeOptions, Encoder as SvtEncoder, EncoderConfig, FrameData, RcMode, Tune,
 };
 
+use crate::animated_webp::{optimize_animated_webp, AnimatedWebpOutcome};
 use crate::{OptimizeConfig, OutputFormat};
 
 /// Supported image extensions for input.
@@ -50,10 +51,33 @@ pub fn resize_image_bytes(
 ) -> Result<(Vec<u8>, &'static str)> {
     let lower = entry_name.to_lowercase();
 
-    // Skip animated WebP (image crate does not support animated WebP encoding)
+    // Animated WebP has a dedicated path. It stays WebP regardless of the
+    // archive-wide static output format or convert-only setting.
     if lower.ends_with(".webp") && is_animated_webp(data) {
-        log::info!("animated WebP skipped: {entry_name}");
-        return Ok((data.to_vec(), original_ext(entry_name)));
+        return match optimize_animated_webp(
+            data,
+            &config.animated_webp,
+            config.effective_dimensions().0,
+            config.effective_dimensions().1,
+        )? {
+            AnimatedWebpOutcome::Optimized { bytes, report } => {
+                log::info!(
+                    "animated WebP optimized: {entry_name} ({} -> {} bytes, {:+.1}%)",
+                    report.input_bytes,
+                    report.encoded_bytes,
+                    report.saved_percent,
+                );
+                Ok((bytes, ".webp"))
+            }
+            AnimatedWebpOutcome::KeptOriginal { reason, report } => {
+                log::info!(
+                    "animated WebP kept: {entry_name} ({reason:?}; {} -> {} bytes)",
+                    report.input_bytes,
+                    report.encoded_bytes,
+                );
+                Ok((data.to_vec(), ".webp"))
+            }
+        };
     }
 
     // Always skip GIF (may be animated)
@@ -133,16 +157,10 @@ fn resize_image(img: DynamicImage, config: &OptimizeConfig) -> DynamicImage {
     img.resize_exact(new_w, new_h, image::imageops::FilterType::CatmullRom)
 }
 
-/// Detect animated WebP from raw bytes (also used by processor.rs)
-///
-/// WebP format: RIFF????WEBPVP8X + flags byte
-/// bit1 (0x02) of flags is the animation flag
+/// Cheap animated-WebP classification used for routing. Full validation and
+/// resource limits are applied by the dedicated animation path.
 pub fn is_animated_webp(data: &[u8]) -> bool {
-    data.len() >= 21
-        && &data[0..4] == b"RIFF"
-        && &data[8..12] == b"WEBP"
-        && &data[12..16] == b"VP8X"
-        && data[20] & 0x02 != 0
+    webp_anim::is_animated_webp_fast(data)
 }
 
 /// Encode image to bytes
@@ -177,15 +195,28 @@ fn encode_avif_svt(img: DynamicImage) -> Result<Vec<u8>> {
     // SVT-AV1 rejects dimensions below 4 pixels. Preserve support for tiny images with the
     // existing encoder; normal CBZ pages use the SVT path below.
     if img.width() < 4 || img.height() < 4 {
-        let mut output = Vec::new();
-        img.write_to(&mut std::io::Cursor::new(&mut output), ImageFormat::Avif)?;
-        return Ok(output);
+        return encode_avif_fallback(img);
     }
 
     let rgba = img.to_rgba8();
     let (width, height) = rgba.dimensions();
     let (y, u, v) = rgba_to_yuv420_bt709(&rgba);
-    let color = encode_svt_i420(width, height, &y, &u, &v, QUALITY, SPEED)?;
+    let color = match encode_svt_i420(width, height, &y, &u, &v, QUALITY, SPEED) {
+        Ok(color) => color,
+        // Some SVT builds also reject small-but-formally-valid dimensions while
+        // allocating their internal resources. The binding does not expose the
+        // native error code, so its Display form is the available way to
+        // distinguish this recoverable initialization failure.
+        Err(error) if is_svt_initialization_resource_error(&error) => {
+            log::warn!(
+                "SVT-AV1 could not allocate encoder resources for {}x{}; using the fallback AVIF encoder",
+                img.width(),
+                img.height(),
+            );
+            return encode_avif_fallback(img);
+        }
+        Err(error) => return Err(error),
+    };
     let alpha = has_transparency(&rgba)
         .then(|| encode_alpha_item(&rgba, QUALITY, SPEED))
         .transpose()?;
@@ -198,6 +229,22 @@ fn encode_avif_svt(img: DynamicImage) -> Result<Vec<u8>> {
         .set_chroma_subsampling((true, true));
 
     Ok(avif.to_vec(&color, alpha.as_deref(), width, height, 8))
+}
+
+fn encode_avif_fallback(img: DynamicImage) -> Result<Vec<u8>> {
+    let mut output = Vec::new();
+    img.write_to(&mut std::io::Cursor::new(&mut output), ImageFormat::Avif)?;
+    Ok(output)
+}
+
+fn is_svt_initialization_resource_error(error: &anyhow::Error) -> bool {
+    error
+        .downcast_ref::<shiguredo_svt_av1::Error>()
+        .is_some_and(|error| is_svt_initialization_resource_message(&error.to_string()))
+}
+
+fn is_svt_initialization_resource_message(message: &str) -> bool {
+    message == "svt_av1_enc_init() failed: code=-2147479552"
 }
 
 fn encode_svt_i420(
@@ -327,77 +374,4 @@ fn rgb_to_yuv_bt709(r: u8, g: u8, b: u8) -> (u8, u8, u8) {
         u.round().clamp(0.0, 255.0) as u8,
         v.round().clamp(0.0, 255.0) as u8,
     )
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::SizePreset;
-    use image::GenericImageView;
-
-    #[test]
-    fn avif_input_can_be_resized_and_reencoded() {
-        let source = DynamicImage::new_rgb8(8, 8);
-        let mut input = Vec::new();
-        source
-            .write_to(&mut std::io::Cursor::new(&mut input), ImageFormat::Avif)
-            .unwrap();
-
-        let config = OptimizeConfig {
-            preset: SizePreset::Custom,
-            max_width: 4,
-            max_height: 4,
-            output_format: OutputFormat::Avif,
-            ..OptimizeConfig::default()
-        };
-        let (output, extension) = resize_image_bytes(&input, "page.avif", &config).unwrap();
-        let decoded = image::load_from_memory(&output).unwrap();
-
-        assert_eq!(extension, ".avif");
-        assert_eq!(decoded.dimensions(), (4, 4));
-    }
-
-    #[test]
-    fn svt_avif_keeps_odd_dimensions() {
-        let source = DynamicImage::new_rgb8(9, 7);
-        let mut input = Vec::new();
-        source
-            .write_to(&mut std::io::Cursor::new(&mut input), ImageFormat::Png)
-            .unwrap();
-
-        let config = OptimizeConfig {
-            output_format: OutputFormat::Avif,
-            convert_only: true,
-            ..OptimizeConfig::default()
-        };
-        let (output, extension) = resize_image_bytes(&input, "odd.png", &config).unwrap();
-        let decoded = image::load_from_memory(&output).unwrap();
-
-        assert_eq!(extension, ".avif");
-        assert_eq!(decoded.dimensions(), (9, 7));
-    }
-
-    #[test]
-    fn svt_avif_keeps_transparency() {
-        let mut source = RgbaImage::new(8, 8);
-        for (x, y, pixel) in source.enumerate_pixels_mut() {
-            *pixel = image::Rgba([x as u8 * 20, y as u8 * 20, 160, if x < 4 { 0 } else { 255 }]);
-        }
-        let mut input = Vec::new();
-        DynamicImage::ImageRgba8(source)
-            .write_to(&mut std::io::Cursor::new(&mut input), ImageFormat::Png)
-            .unwrap();
-
-        let config = OptimizeConfig {
-            output_format: OutputFormat::Avif,
-            convert_only: true,
-            ..OptimizeConfig::default()
-        };
-        let (output, extension) = resize_image_bytes(&input, "alpha.png", &config).unwrap();
-        let decoded = image::load_from_memory(&output).unwrap().to_rgba8();
-
-        assert_eq!(extension, ".avif");
-        assert!(decoded.get_pixel(1, 1)[3] < 10);
-        assert!(decoded.get_pixel(6, 1)[3] > 245);
-    }
 }

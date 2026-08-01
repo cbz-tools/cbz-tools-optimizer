@@ -7,7 +7,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.1.4"
+version = "0.1.5"
 edition = "2021"
 authors = ["cbz-tools"]
 license = "MIT"
@@ -29,6 +29,8 @@ avif-serialize = "0.8.8"
 avif-parse = "2.1"
 ravif = { version = "0.13", default-features = false }
 shiguredo_svt_av1 = "2026.1.0"
+# Shared codec for animated WebP, published on crates.io.
+webp-anim = "0.1.0"
 # Parallelism
 rayon = "1.10"
 # ZIP

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.5] - 2026-08-01
+
+### Added
+- Animated WebP entries in ZIP/CBZ archives can now be resized and re-encoded while preserving frame timing, loop count, and ANIM background color.
+- Animated WebP resize filters, keyframe policy, keyframe interval, and output-size policy can be configured from the CLI and GUI.
+
+---
+
 ## [0.1.4] - 2026-07-28
 
 ### Fixed

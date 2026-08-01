@@ -2,10 +2,12 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
-use anyhow::Result;
+use anyhow::{ensure, Result};
 use cbz_tools_optimizer_core::{
-    format_elapsed, format_size, processor::process_zips, LogMode, OptimizeConfig, OutputFormat,
-    OverwriteMode, ProgressEvent, SizePreset,
+    format_elapsed, format_size, processor::process_zips, AnimatedWebpEncoding,
+    AnimatedWebpKeyframePolicy, AnimatedWebpOptions, AnimatedWebpOutputPolicy,
+    AnimatedWebpResizeFilter, LogMode, OptimizeConfig, OutputFormat, OverwriteMode, ProgressEvent,
+    SizePreset,
 };
 use clap::Parser;
 
@@ -29,8 +31,7 @@ struct Args {
     #[arg(short = 'H', long, default_value_t = 1080, hide_default_value = true)]
     max_height: u32,
 
-    /// JPEG quality (1-100) — used when --output-format is jpeg, or when --output-format
-    /// is original and --convert-only is not set (JPEG inputs may be re-encoded)
+    /// Lossy quality (1-100) — used by JPEG output and animated WebP resizing.
     #[arg(short, long, default_value_t = 85)]
     quality: u8,
 
@@ -70,6 +71,38 @@ struct Args {
     /// (zero degradation). Combine with --output-format to change format without resizing.
     #[arg(long)]
     convert_only: bool,
+
+    /// Interpolation used only when an animated WebP must be resized:
+    ///   bilinear   : fast and smooth (default)
+    ///   catmull-rom: sharper bicubic; can create slight edge halos
+    ///   lanczos3   : highest-detail comparison option; slowest
+    #[arg(long, value_enum, default_value = "bilinear", verbatim_doc_comment)]
+    animated_webp_filter: AnimatedWebpResizeFilter,
+
+    /// Animated-WebP keyframe insertion policy:
+    ///   bounded : insert keyframes between --animated-webp-kmin and --animated-webp-kmax (default)
+    ///   disabled: do not force periodic keyframes; --animated-webp-kmin / --animated-webp-kmax are ignored
+    #[arg(long, value_enum, default_value = "bounded", verbatim_doc_comment)]
+    animated_webp_keyframes: AnimatedWebpKeyframePolicy,
+
+    /// Minimum distance between animated-WebP key frames.
+    #[arg(long, default_value_t = 3)]
+    animated_webp_kmin: i32,
+
+    /// Maximum distance between animated-WebP key frames.
+    #[arg(long, default_value_t = 5)]
+    animated_webp_kmax: i32,
+
+    /// Handling when animated-WebP output is larger than the source:
+    ///   always-use-encoded      : write the resized result (default)
+    ///   keep-original-if-larger: retain the source entry instead
+    #[arg(
+        long,
+        value_enum,
+        default_value = "always-use-encoded",
+        verbatim_doc_comment
+    )]
+    animated_webp_output_policy: AnimatedWebpOutputPolicy,
 
     /// Log output mode:
     ///   cli    : console output only (default)
@@ -111,6 +144,18 @@ fn main() -> Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn")).init();
 
     let args = Args::parse();
+    if matches!(
+        args.animated_webp_keyframes,
+        AnimatedWebpKeyframePolicy::Bounded
+    ) {
+        ensure!(
+            args.animated_webp_kmin >= 0
+                && args.animated_webp_kmax >= 2
+                && args.animated_webp_kmin < args.animated_webp_kmax
+                && args.animated_webp_kmin >= args.animated_webp_kmax / 2 + 1,
+            "--animated-webp-kmin/--animated-webp-kmax must satisfy kmax >= 2, 0 <= kmin < kmax, and kmin >= kmax / 2 + 1"
+        );
+    }
     let json_mode = args.json;
 
     // Warn and confirm before overwriting originals when suffix is empty and overwrite mode is on
@@ -139,6 +184,18 @@ fn main() -> Result<()> {
         threads: args.threads,
         output_format: args.output_format,
         convert_only: args.convert_only,
+        animated_webp: AnimatedWebpOptions {
+            encoding: AnimatedWebpEncoding::Lossy {
+                quality: f32::from(args.quality),
+                method: 4,
+            },
+            resize_filter: args.animated_webp_filter,
+            output_policy: args.animated_webp_output_policy,
+            keyframe_policy: args.animated_webp_keyframes,
+            kmin: args.animated_webp_kmin,
+            kmax: args.animated_webp_kmax,
+            ..Default::default()
+        },
         log_mode: args.log_mode,
         overwrite_mode: args.overwrite_mode,
     };
@@ -158,8 +215,10 @@ fn main() -> Result<()> {
         eprintln!("cbz-opt  Processing {} file(s)", total);
         if config.convert_only {
             eprintln!(
-                "Settings: convert-only / format={:?}{}/ threads={}",
+                "Settings: convert-only / format={:?} / animated-webp-filter={:?} / animated-webp-keyframes={:?}{}/ threads={}",
                 config.output_format,
+                config.animated_webp.resize_filter,
+                config.animated_webp.keyframe_policy,
                 if is_jpeg_out {
                     format!(" / quality={} ", config.jpeg_quality)
                 } else {
@@ -173,11 +232,13 @@ fn main() -> Result<()> {
             );
         } else {
             eprintln!(
-                "Settings: preset={:?} ({}x{}) / format={:?}{}/ threads={}",
+                "Settings: preset={:?} ({}x{}) / format={:?} / animated-webp-filter={:?} / animated-webp-keyframes={:?}{}/ threads={}",
                 config.preset,
                 display_w,
                 display_h,
                 config.output_format,
+                config.animated_webp.resize_filter,
+                config.animated_webp.keyframe_policy,
                 if is_jpeg_out {
                     format!(" / quality={} ", config.jpeg_quality)
                 } else {
@@ -371,6 +432,14 @@ fn write_log(
         buf.push_str(&format!("  Quality : {}\n", config.jpeg_quality));
     }
     buf.push_str(&format!("  Format  : {}\n", format_name));
+    buf.push_str(&format!(
+        "  Animated WebP filter: {:?}\n",
+        config.animated_webp.resize_filter
+    ));
+    buf.push_str(&format!(
+        "  Animated WebP keyframes: {:?}\n",
+        config.animated_webp.keyframe_policy
+    ));
     buf.push_str(&format!("  Threads : {}\n", threads_str));
     buf.push_str("----------------------------------------\n");
 
