@@ -121,7 +121,9 @@ cbz-opt --output-format jpeg --convert-only input.cbz
 
 | Input archives | Output archive |
 |---|---|
-| ZIP / CBZ / RAR / CBR | CBZ |
+| ZIP | ZIP |
+| CBZ | CBZ |
+| RAR / CBR | CBZ |
 
 RAR/CBR input follows the same UnRAR-based handling as the companion viewer. The output is a ZIP container with a `.cbz` extension.
 
