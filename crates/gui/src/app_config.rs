@@ -9,6 +9,8 @@ pub struct AppConfig {
     pub jpeg_quality: u8,
     pub output_format: String,
     pub convert_only: bool,
+    #[serde(default = "default_resize_filter")]
+    pub resize_filter: String,
     #[serde(default = "default_animated_webp_filter")]
     pub animated_webp_filter: String,
     #[serde(default = "default_animated_webp_keyframes")]
@@ -38,6 +40,7 @@ impl Default for AppConfig {
             jpeg_quality: 85,
             output_format: "jpeg".into(),
             convert_only: false,
+            resize_filter: default_resize_filter(),
             animated_webp_filter: default_animated_webp_filter(),
             animated_webp_keyframes: default_animated_webp_keyframes(),
             animated_webp_kmin: default_animated_webp_kmin(),
@@ -56,6 +59,10 @@ impl Default for AppConfig {
 
 fn default_animated_webp_filter() -> String {
     "bilinear".into()
+}
+
+fn default_resize_filter() -> String {
+    "catmull-rom".into()
 }
 
 fn default_animated_webp_keyframes() -> String {

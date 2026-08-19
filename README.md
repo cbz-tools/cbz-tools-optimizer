@@ -27,7 +27,7 @@ Extract the archive and run the binary directly — no installation required.
 |---|---|
 | 📦 **Storage savings** | Significantly reduce file size — real-world result: **9.0 GB → 647.6 MB (-93%)** in 1m 35s |
 | 🔄 **Format conversion** | Convert JPEG / PNG / WebP / AVIF in bulk — resize and convert in a single pass |
-| ⚡ **Speed** | Parallel processing across archives and images via rayon |
+| ⚡ **Speed** | Parallel processing across archives and images via rayon, fast image resizing, and native JPEG/WebP codecs |
 | 🖥️ **Cross-platform** | Windows / Linux / macOS — single binary, no install |
 | 🎯 **Device-ready presets** | iPad, Kindle, 4K and more — one flag to optimize for your device |
 | 🤖 **Script-friendly** | Batch CLI with JSON output for automation and pipeline integration |
@@ -90,6 +90,7 @@ cbz-opt --output-format jpeg --convert-only input.cbz
 | `-t`, `--threads` | 0 (auto) | Number of threads (0 = half of logical CPUs) |
 | `--output-format` | `jpeg` | Output image format: `jpeg` / `png` / `webp` / `avif` / `original` |
 | `--convert-only` | — | Convert format only — skip resize entirely. `--preset` / `-W` / `-H` are ignored. Same-format files are passed through without re-encoding (zero degradation) |
+| `--resize-filter` | `catmull-rom` | Static image resize interpolation: `bilinear`, `catmull-rom`, or `lanczos3` |
 | `--animated-webp-filter` | `bilinear` | Animated WebP resize interpolation: `bilinear` (fast/smooth), `catmull-rom` (sharper bicubic), or `lanczos3` (highest-detail comparison; slowest) |
 | `--animated-webp-keyframes` | `bounded` | Animated WebP keyframe policy: `bounded` uses the interval below; `disabled` does not force periodic keyframes and ignores `kmin` / `kmax` |
 | `--animated-webp-kmin` / `--animated-webp-kmax` | `3` / `5` | Minimum / maximum distance between animated-WebP key frames (`kmax >= 2`, `0 <= kmin < kmax`, `kmin >= kmax / 2 + 1`) |
@@ -140,7 +141,7 @@ RAR/CBR input follows the same UnRAR-based handling as the companion viewer. The
 | TIFF | Yes | Converted to output format |
 | GIF | Skipped | — |
 
-Animated WebP entries use a dedicated path: frame timing, loop count, and ANIM background color are preserved while frames may be resized. Entries already within the configured size bounds remain byte-identical; larger entries are resized with the selected interpolation and re-encoded as lossy `.webp` using the common `--quality` value (default 85, encoder method 4), independently of `--output-format` and `--convert-only`. Choose the resize filter with `--animated-webp-filter`; it is only used when a resize is actually required. `--animated-webp-keyframes bounded` (default) inserts independently decodable frames within the configured `kmin` / `kmax` interval. Choose `disabled` to avoid forced periodic keyframes; supplied `kmin` / `kmax` values are ignored. By default the resized result is written to honor the configured bounds; `--animated-webp-output-policy keep-original-if-larger` opts back into retaining an oversized source. GIF-containing archives are skipped.
+Static images use fast_image_resize with alpha-aware premultiplication where supported; 16-bit PNG pixel types remain 16-bit through resizing. JPEG pages use TurboJPEG/libjpeg-turbo, including bounded 1/4 or 1/2 DCT decode scaling when a resize is required. Static WebP pages use libwebp for decode and lossless encode. Animated WebP entries use a dedicated path: frame timing, loop count, and ANIM background color are preserved while frames may be resized. Entries already within the configured size bounds remain byte-identical; larger entries are resized with the selected interpolation and re-encoded as lossy `.webp` using the common `--quality` value (default 85, encoder method 4), independently of `--output-format` and `--convert-only`. Choose the static filter with `--resize-filter`; animated WebP keeps its separate `--animated-webp-filter` setting. `--animated-webp-keyframes bounded` (default) inserts independently decodable frames within the configured `kmin` / `kmax` interval. Choose `disabled` to avoid forced periodic keyframes; supplied `kmin` / `kmax` values are ignored. By default the resized result is written to honor the configured bounds; `--animated-webp-output-policy keep-original-if-larger` opts back into retaining an oversized source. GIF-containing archives are skipped.
 BMP and TIFF inputs are converted to the format specified by `--output-format` (default: `jpeg`).  
 AVIF is supported as both input and output (`--output-format avif`). AVIF decoding uses the bundled native `libdav1d` runtime on Windows.
 
@@ -197,10 +198,11 @@ Multiple ZIP/CBZ/RAR/CBR files
   └── rayon::par_iter()   ← parallel across archives
         └── each archive entry
               └── rayon::par_iter()   ← parallel across images
-                    └── resize / convert with CatmullRom filter
+                    └── resize / convert with selected static filter
 ```
 
 - Images already within the pixel-dimension limit are not resized, but are still encoded into the selected output format in normal mode. To preserve their bytes, use `--convert-only` with the matching output format.
+- JPEG DCT pre-scaling is deliberately conservative: the final target dimensions receive a 20% guard, and only 1/4, 1/2, or full decode are considered so the DCT result does not undershoot the guarded target.
 - Each archive is processed independently; one failure does not abort others
 - Default thread count is **half of logical CPUs** to avoid saturating the system (override with `--threads N`)
 - Output file conflict is controlled by `--overwrite-mode` (default: skip existing files)

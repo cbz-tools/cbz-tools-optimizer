@@ -7,7 +7,7 @@ use cbz_tools_optimizer_core::{
     format_elapsed, format_size, processor::process_archives, AnimatedWebpEncoding,
     AnimatedWebpKeyframePolicy, AnimatedWebpOptions, AnimatedWebpOutputPolicy,
     AnimatedWebpResizeFilter, LogMode, OptimizeConfig, OutputFormat, OverwriteMode, ProgressEvent,
-    SizePreset,
+    ResizeFilter, SizePreset,
 };
 use clap::Parser;
 
@@ -71,6 +71,13 @@ struct Args {
     /// (zero degradation). Combine with --output-format to change format without resizing.
     #[arg(long)]
     convert_only: bool,
+
+    /// Static image resize filter:
+    ///   bilinear   : fast and smooth
+    ///   catmull-rom: sharper bicubic (default)
+    ///   lanczos3   : highest-detail option; slowest
+    #[arg(long, value_enum, default_value = "catmull-rom", verbatim_doc_comment)]
+    resize_filter: ResizeFilter,
 
     /// Interpolation used only when an animated WebP must be resized:
     ///   bilinear   : fast and smooth (default)
@@ -152,8 +159,8 @@ fn main() -> Result<()> {
             args.animated_webp_kmin >= 0
                 && args.animated_webp_kmax >= 2
                 && args.animated_webp_kmin < args.animated_webp_kmax
-                && args.animated_webp_kmin >= args.animated_webp_kmax / 2 + 1,
-            "--animated-webp-kmin/--animated-webp-kmax must satisfy kmax >= 2, 0 <= kmin < kmax, and kmin >= kmax / 2 + 1"
+                && args.animated_webp_kmin > args.animated_webp_kmax / 2,
+            "--animated-webp-kmin/--animated-webp-kmax must satisfy kmax >= 2, 0 <= kmin < kmax, and kmin > kmax / 2"
         );
     }
     let json_mode = args.json;
@@ -184,6 +191,7 @@ fn main() -> Result<()> {
         threads: args.threads,
         output_format: args.output_format,
         convert_only: args.convert_only,
+        resize_filter: args.resize_filter,
         animated_webp: AnimatedWebpOptions {
             encoding: AnimatedWebpEncoding::Lossy {
                 quality: f32::from(args.quality),
@@ -215,8 +223,9 @@ fn main() -> Result<()> {
         eprintln!("cbz-opt  Processing {} file(s)", total);
         if config.convert_only {
             eprintln!(
-                "Settings: convert-only / format={:?} / animated-webp-filter={:?} / animated-webp-keyframes={:?}{}/ threads={}",
+                "Settings: convert-only / format={:?} / resize-filter={:?} / animated-webp-filter={:?} / animated-webp-keyframes={:?}{}/ threads={}",
                 config.output_format,
+                config.resize_filter,
                 config.animated_webp.resize_filter,
                 config.animated_webp.keyframe_policy,
                 if is_jpeg_out {
@@ -232,11 +241,12 @@ fn main() -> Result<()> {
             );
         } else {
             eprintln!(
-                "Settings: preset={:?} ({}x{}) / format={:?} / animated-webp-filter={:?} / animated-webp-keyframes={:?}{}/ threads={}",
+                "Settings: preset={:?} ({}x{}) / format={:?} / resize-filter={:?} / animated-webp-filter={:?} / animated-webp-keyframes={:?}{}/ threads={}",
                 config.preset,
                 display_w,
                 display_h,
                 config.output_format,
+                config.resize_filter,
                 config.animated_webp.resize_filter,
                 config.animated_webp.keyframe_policy,
                 if is_jpeg_out {

@@ -1,0 +1,3 @@
+if(WIN32)
+  set(WITH_CRT_DLL ON CACHE BOOL "Use the MSVC CRT DLL" FORCE)
+endif()

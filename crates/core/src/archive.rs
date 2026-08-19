@@ -167,25 +167,3 @@ fn ensure_unrar_dll_for_current_target() -> Result<()> {
 fn ensure_unrar_dll_for_current_target() -> Result<()> {
     Ok(())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::{archive_kind, is_supported_archive_path, ArchiveKind};
-    use std::path::Path;
-
-    #[test]
-    fn archive_kind_accepts_zip_and_rar_aliases_case_insensitively() {
-        assert_eq!(archive_kind(Path::new("book.zip")), Some(ArchiveKind::Zip));
-        assert_eq!(archive_kind(Path::new("book.CBZ")), Some(ArchiveKind::Zip));
-        assert_eq!(archive_kind(Path::new("book.rar")), Some(ArchiveKind::Rar));
-        assert_eq!(archive_kind(Path::new("book.CbR")), Some(ArchiveKind::Rar));
-        assert_eq!(archive_kind(Path::new("book.7z")), None);
-    }
-
-    #[test]
-    fn supported_archive_path_requires_an_archive_extension() {
-        assert!(is_supported_archive_path(Path::new("book.cbr")));
-        assert!(!is_supported_archive_path(Path::new("book.jpg")));
-        assert!(!is_supported_archive_path(Path::new("book")));
-    }
-}

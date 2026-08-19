@@ -12,6 +12,8 @@ jobs:
   build-windows:
     name: Build Windows
     runs-on: windows-latest
+    env:
+      CMAKE_TOOLCHAIN_FILE: "${{ github.workspace }}/cmake/turbojpeg-msvc-runtime.cmake"
     steps:
       - uses: actions/checkout@v4
 
@@ -19,6 +21,20 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-pc-windows-msvc
+
+      - name: Restore vcpkg binary cache
+        uses: actions/cache@v4
+        with:
+          path: .vcpkg-binary-cache
+          key: ${{ runner.os }}-vcpkg-dav1d-${{ hashFiles('Cargo.lock') }}
+
+      - name: Configure vcpkg file binary cache
+        shell: pwsh
+        run: |
+          $cacheDir = Join-Path $env:GITHUB_WORKSPACE ".vcpkg-binary-cache"
+          New-Item -ItemType Directory -Force -Path $cacheDir | Out-Null
+          Add-Content $env:GITHUB_ENV "VCPKG_BINARY_SOURCES=clear;files,$cacheDir,readwrite"
+          Write-Host "VCPKG_BINARY_SOURCES=clear;files,$cacheDir,readwrite"
 
       - name: Install dav1d (vcpkg)
         shell: pwsh
@@ -54,18 +70,67 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
 
       - name: Build CLI (release)
+        shell: pwsh
         env:
           CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER: link.exe
-        run: cargo build --release --target x86_64-pc-windows-msvc -p cbz-tools-optimizer-cli
+        run: cargo build --release --locked --target x86_64-pc-windows-msvc -p cbz-tools-optimizer-cli
 
       - name: Build GUI (release)
+        shell: pwsh
         env:
           CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER: link.exe
-        run: cargo build --release --target x86_64-pc-windows-msvc -p cbz-tools-optimizer-gui
+        run: cargo build --release --locked --target x86_64-pc-windows-msvc -p cbz-tools-optimizer-gui
+
+      - name: Validate TurboJPEG CRT and static link
+        shell: pwsh
+        run: |
+          $targetRoot = Join-Path $env:GITHUB_WORKSPACE "target"
+          $cacheFiles = Get-ChildItem $targetRoot -Recurse -File -Filter CMakeCache.txt |
+            Where-Object { $_.FullName -match "turbojpeg-sys" -and $_.FullName -match "[\\/]release[\\/]build[\\/]" }
+          if (!$cacheFiles) {
+            throw "TurboJPEG CMakeCache.txt was not found under the release target directory"
+          }
+
+          $crtMatch = $cacheFiles | Select-String -Pattern "WITH_CRT_DLL:BOOL=ON" -SimpleMatch
+          $toolchainMatch = $cacheFiles | Select-String -Pattern "CMAKE_TOOLCHAIN_FILE:FILEPATH=.*turbojpeg-msvc-runtime.cmake"
+          if (!$crtMatch -or !$toolchainMatch) {
+            throw "TurboJPEG CMakeCache does not confirm WITH_CRT_DLL=ON and the repository toolchain file"
+          }
+
+          $dumpbinCommand = Get-Command dumpbin.exe -ErrorAction SilentlyContinue
+          $dumpbin = if ($dumpbinCommand) { $dumpbinCommand.Source } else { $null }
+          if (!$dumpbin) {
+            $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio/Installer/vswhere.exe"
+            if (Test-Path $vswhere) {
+              $installPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath | Select-Object -First 1
+              if ($installPath) {
+                $dumpbin = Get-ChildItem (Join-Path $installPath "VC/Tools/MSVC") -Recurse -File -Filter dumpbin.exe |
+                  Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
+              }
+            }
+          }
+          if (!$dumpbin) {
+            throw "dumpbin.exe was not found"
+          }
+
+          $binaries = @(
+            (Join-Path $targetRoot "x86_64-pc-windows-msvc/release/cbz-opt.exe"),
+            (Join-Path $targetRoot "x86_64-pc-windows-msvc/release/cbz-opt-gui.exe")
+          )
+          foreach ($binary in $binaries) {
+            if (!(Test-Path $binary)) {
+              throw "Expected release binary was not found: $binary"
+            }
+            $dependents = (& $dumpbin /dependents $binary 2>&1 | Out-String)
+            if ($dependents -match "(?im)^\s*(turbojpeg|libjpeg|jpeg)[^\r\n]*\.dll\s*$") {
+              throw "Static TurboJPEG validation failed for $binary"
+            }
+          }
 
       - name: Package artifacts
         shell: pwsh
@@ -103,7 +168,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install system deps
-        run: sudo apt-get install -y libssl-dev libdav1d-dev pkg-config
+        run: sudo apt-get install -y libssl-dev libdav1d-dev pkg-config nasm
 
       - name: Cache cargo
         uses: actions/cache@v4
@@ -111,13 +176,14 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
 
       - name: Build CLI
         env:
           SYSTEM_DEPS_DAV1D_LINK: static
-        run: cargo build --release -p cbz-tools-optimizer-cli
+        run: cargo build --release --locked -p cbz-tools-optimizer-cli
 
       - name: Package
         run: |
@@ -148,7 +214,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install dav1d
-        run: brew install dav1d pkg-config
+        run: brew install dav1d pkg-config nasm
 
       - name: Cache cargo
         uses: actions/cache@v4
@@ -156,18 +222,25 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
 
       - name: Build CLI
         env:
           SYSTEM_DEPS_DAV1D_LINK: static
-        run: cargo build --release -p cbz-tools-optimizer-cli
+        run: cargo build --release --locked -p cbz-tools-optimizer-cli
+
+      - name: Report macOS architecture
+        run: |
+          uname -m
+          rustc -vV
+          file target/release/cbz-opt
 
       - name: Package
         run: |
           tag="${{ github.ref_name }}"
-          dir="cbz-tools-optimizer-${tag}-macos-x64"
+          dir="cbz-tools-optimizer-${tag}-macos-arm64"
           mkdir "$dir"
           cp target/release/cbz-opt "$dir/"
           cp README.md LICENSE THIRDPARTY_LICENSES.md "$dir/"

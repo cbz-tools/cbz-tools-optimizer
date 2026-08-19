@@ -196,8 +196,8 @@ fn validate_options(options: &AnimatedWebpOptions, max_width: u32, max_height: u
             options.kmin >= 0
                 && options.kmax >= 2
                 && options.kmin < options.kmax
-                && options.kmin >= options.kmax / 2 + 1,
-            "animated WebP keyframe intervals must satisfy kmax >= 2, 0 <= kmin < kmax, and kmin >= kmax / 2 + 1"
+                && options.kmin > options.kmax / 2,
+            "animated WebP keyframe intervals must satisfy kmax >= 2, 0 <= kmin < kmax, and kmin > kmax / 2"
         );
     }
     match options.encoding {

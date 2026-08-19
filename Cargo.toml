@@ -7,7 +7,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.1.6"
+version = "0.1.7"
 edition = "2021"
 authors = ["cbz-tools"]
 license = "MIT"
@@ -24,6 +24,9 @@ lto = "thin"
 [workspace.dependencies]
 # Image processing
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "avif", "avif-native", "bmp", "tiff", "gif"] }
+fast_image_resize = { version = "6.1.0", features = ["image"] }
+turbojpeg = { version = "=1.5.1", default-features = false, features = ["cmake", "require-simd"] }
+webp = "=0.3.1"
 # AVIF output through SVT-AV1. AVIF input remains image + dav1d.
 avif-serialize = "0.8.8"
 avif-parse = "2.1"

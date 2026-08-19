@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.7] - 2026-08-19
+
+### Added
+
+- Static resize filters (`bilinear`, `catmull-rom`, and `lanczos3`) with CLI and persisted GUI settings.
+- Accelerated static resizing through fast_image_resize, TurboJPEG/libjpeg-turbo JPEG processing, and libwebp static WebP processing.
+- Alpha-aware raster resizing and preservation of 16-bit PNG image types where the selected output supports them.
+
 ## [0.1.6] - 2026-08-02
 
 ### Added

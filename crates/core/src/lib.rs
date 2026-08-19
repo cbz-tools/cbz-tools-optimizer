@@ -101,10 +101,11 @@ pub enum AnimatedWebpEncoding {
 }
 
 /// Resampling filter used when an animated WebP needs geometric resizing.
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
 #[cfg_attr(feature = "clap", derive(clap::ValueEnum))]
 pub enum AnimatedWebpResizeFilter {
     /// Fast and smooth; the compatibility default.
+    #[default]
     Bilinear,
     /// Sharper bicubic interpolation, with a small risk of edge halos.
     CatmullRom,
@@ -112,26 +113,28 @@ pub enum AnimatedWebpResizeFilter {
     Lanczos3,
 }
 
+/// Resampling filter used when a static image needs geometric resizing.
+#[derive(Debug, Clone, Copy, Default, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "clap", derive(clap::ValueEnum))]
+pub enum ResizeFilter {
+    /// Fast and smooth interpolation.
+    Bilinear,
+    /// Sharper bicubic interpolation, with a small risk of edge halos.
+    #[default]
+    CatmullRom,
+    /// Highest-detail option; slowest and may ring on high-contrast edges.
+    Lanczos3,
+}
+
 /// Controls regular keyframe insertion for animated WebP output.
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
 #[cfg_attr(feature = "clap", derive(clap::ValueEnum))]
 pub enum AnimatedWebpKeyframePolicy {
     /// Insert independently decodable frames within the configured interval.
+    #[default]
     Bounded,
     /// Do not force periodic keyframes; min/max values are ignored.
     Disabled,
-}
-
-impl Default for AnimatedWebpKeyframePolicy {
-    fn default() -> Self {
-        Self::Bounded
-    }
-}
-
-impl Default for AnimatedWebpResizeFilter {
-    fn default() -> Self {
-        Self::Bilinear
-    }
 }
 
 impl From<AnimatedWebpResizeFilter> for webp_anim::ResizeFilter {
@@ -255,6 +258,9 @@ pub struct OptimizeConfig {
     /// Convert format only — skip resize entirely.
     /// If input and output formats match, bytes are passed through without re-encoding.
     pub convert_only: bool,
+    /// Resampling filter used for static images that need resizing.
+    #[serde(default)]
+    pub resize_filter: ResizeFilter,
     /// Dedicated settings for animated WebP entries. They remain WebP and do
     /// not use `output_format`, `jpeg_quality`, or `convert_only`.
     #[serde(default)]
@@ -286,6 +292,7 @@ impl Default for OptimizeConfig {
             threads: 0,
             output_format: OutputFormat::Jpeg,
             convert_only: false,
+            resize_filter: ResizeFilter::default(),
             animated_webp: AnimatedWebpOptions::default(),
             log_mode: LogMode::Cli,
             overwrite_mode: OverwriteMode::Skip,

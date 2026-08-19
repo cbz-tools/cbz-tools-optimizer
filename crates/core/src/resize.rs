@@ -5,7 +5,7 @@ use shiguredo_svt_av1::{
 };
 
 use crate::animated_webp::{optimize_animated_webp, AnimatedWebpOutcome};
-use crate::{OptimizeConfig, OutputFormat};
+use crate::{OptimizeConfig, OutputFormat, ResizeFilter};
 
 /// Supported image extensions for input.
 /// AVIF decoding uses the native libdav1d library via `image/avif-native`.
@@ -103,12 +103,12 @@ pub fn resize_image_bytes(
         return Ok((data.to_vec(), ext));
     }
 
-    let img = image::load_from_memory(data)?;
+    let img = decode_static_image(data, &lower, config)?;
 
     let processed = if config.convert_only {
         img // skip resize entirely
     } else {
-        resize_image(img, config)
+        resize_image(img, config)?
     };
 
     let encoded = encode_image(processed, fmt, config.jpeg_quality)?;
@@ -137,24 +137,189 @@ fn original_ext(name: &str) -> &'static str {
     }
 }
 
-/// Resize DynamicImage while preserving aspect ratio
-fn resize_image(img: DynamicImage, config: &OptimizeConfig) -> DynamicImage {
+fn decode_static_image(
+    data: &[u8],
+    entry_name: &str,
+    config: &OptimizeConfig,
+) -> Result<DynamicImage> {
+    if entry_name.ends_with(".jpg") || entry_name.ends_with(".jpeg") {
+        return decode_jpeg(data, config);
+    }
+    if entry_name.ends_with(".webp") {
+        return webp::Decoder::new(data)
+            .decode()
+            .map(|image| image.to_image())
+            .ok_or_else(|| anyhow::anyhow!("static WebP decode failed"));
+    }
+    Ok(image::load_from_memory(data)?)
+}
+
+/// Resize DynamicImage while preserving aspect ratio and its native pixel type.
+fn resize_image(img: DynamicImage, config: &OptimizeConfig) -> Result<DynamicImage> {
     let (w, h) = (img.width(), img.height());
     let (max_width, max_height) = config.effective_dimensions();
 
-    // Already within limits, skip resize
-    if w <= max_width && h <= max_height {
-        return img;
+    let Some((new_w, new_h)) = target_dimensions(w, h, max_width, max_height) else {
+        return Ok(img);
+    };
+
+    let filter = match config.resize_filter {
+        ResizeFilter::Bilinear => fast_image_resize::FilterType::Bilinear,
+        ResizeFilter::CatmullRom => fast_image_resize::FilterType::CatmullRom,
+        ResizeFilter::Lanczos3 => fast_image_resize::FilterType::Lanczos3,
+    };
+    let mut dst = blank_like(&img, new_w, new_h);
+    let options = fast_image_resize::ResizeOptions::new()
+        .resize_alg(fast_image_resize::ResizeAlg::Convolution(filter))
+        // FIR uses MulDiv::multiply_alpha/divide_alpha for supported U8x4/U16x4
+        // images, avoiding dark fringes around translucent raster content.
+        .use_alpha(true);
+    fast_image_resize::Resizer::new()
+        .resize(&img, &mut dst, &options)
+        .map_err(|error| anyhow::anyhow!("fast_image_resize: {error}"))?;
+    Ok(dst)
+}
+
+fn target_dimensions(w: u32, h: u32, max_width: u32, max_height: u32) -> Option<(u32, u32)> {
+    if w == 0 || h == 0 || (w <= max_width && h <= max_height) {
+        return None;
+    }
+    let ratio = (max_width as f64 / w as f64).min(max_height as f64 / h as f64);
+    Some((
+        ((w as f64 * ratio).round() as u32).max(1),
+        ((h as f64 * ratio).round() as u32).max(1),
+    ))
+}
+
+fn blank_like(img: &DynamicImage, width: u32, height: u32) -> DynamicImage {
+    match img {
+        DynamicImage::ImageLuma8(_) => {
+            DynamicImage::ImageLuma8(image::GrayImage::new(width, height))
+        }
+        DynamicImage::ImageLumaA8(_) => {
+            DynamicImage::ImageLumaA8(image::GrayAlphaImage::new(width, height))
+        }
+        DynamicImage::ImageRgb8(_) => DynamicImage::ImageRgb8(image::RgbImage::new(width, height)),
+        DynamicImage::ImageRgba8(_) => {
+            DynamicImage::ImageRgba8(image::RgbaImage::new(width, height))
+        }
+        DynamicImage::ImageLuma16(_) => {
+            DynamicImage::ImageLuma16(image::ImageBuffer::new(width, height))
+        }
+        DynamicImage::ImageLumaA16(_) => {
+            DynamicImage::ImageLumaA16(image::ImageBuffer::new(width, height))
+        }
+        DynamicImage::ImageRgb16(_) => {
+            DynamicImage::ImageRgb16(image::ImageBuffer::new(width, height))
+        }
+        DynamicImage::ImageRgba16(_) => {
+            DynamicImage::ImageRgba16(image::ImageBuffer::new(width, height))
+        }
+        DynamicImage::ImageRgb32F(_) => {
+            DynamicImage::ImageRgb32F(image::ImageBuffer::new(width, height))
+        }
+        DynamicImage::ImageRgba32F(_) => {
+            DynamicImage::ImageRgba32F(image::ImageBuffer::new(width, height))
+        }
+        _ => unreachable!("image crate DynamicImage variant is not FIR-compatible"),
+    }
+}
+
+fn decode_jpeg(data: &[u8], config: &OptimizeConfig) -> Result<DynamicImage> {
+    let mut decompressor = match turbojpeg::Decompressor::new() {
+        Ok(value) => value,
+        Err(error) => return jpeg_image_fallback(data, format!("TurboJPEG init failed: {error}")),
+    };
+    let header = match decompressor.read_header(data) {
+        Ok(value) => value,
+        Err(error) => {
+            return jpeg_image_fallback(data, format!("TurboJPEG header failed: {error}"))
+        }
+    };
+
+    // TurboJPEG's CMYK/YCCK color conversion is intentionally not used here.
+    // image's full decoder is the portable fallback for those uncommon JPEGs.
+    if matches!(
+        header.colorspace,
+        turbojpeg::Colorspace::CMYK | turbojpeg::Colorspace::YCCK
+    ) {
+        return jpeg_image_fallback(data, "CMYK/YCCK JPEG".to_string());
     }
 
-    let ratio_w = max_width as f64 / w as f64;
-    let ratio_h = max_height as f64 / h as f64;
-    let ratio = ratio_w.min(ratio_h);
+    let source = (
+        u32::try_from(header.width).unwrap_or(u32::MAX),
+        u32::try_from(header.height).unwrap_or(u32::MAX),
+    );
+    let final_dimensions = target_dimensions(
+        source.0,
+        source.1,
+        config.effective_dimensions().0,
+        config.effective_dimensions().1,
+    );
+    let scale = match (config.convert_only, final_dimensions, header.is_lossless) {
+        (false, Some(dimensions), false) => choose_jpeg_dct_scale(&header, dimensions),
+        _ => turbojpeg::ScalingFactor::ONE,
+    };
 
-    let new_w = ((w as f64 * ratio).round() as u32).max(1);
-    let new_h = ((h as f64 * ratio).round() as u32).max(1);
+    match decode_jpeg_with_turbo(data, &mut decompressor, header, scale) {
+        Ok(image) => Ok(image),
+        Err(error) => jpeg_image_fallback(data, format!("TurboJPEG decode failed: {error}")),
+    }
+}
 
-    img.resize_exact(new_w, new_h, image::imageops::FilterType::CatmullRom)
+fn jpeg_image_fallback(data: &[u8], reason: String) -> Result<DynamicImage> {
+    log::debug!("using image full-decode fallback for JPEG ({reason})");
+    image::load_from_memory(data)
+        .map_err(|fallback| anyhow::anyhow!("{reason}; image fallback failed: {fallback}"))
+}
+
+fn choose_jpeg_dct_scale(
+    header: &turbojpeg::DecompressHeader,
+    (target_width, target_height): (u32, u32),
+) -> turbojpeg::ScalingFactor {
+    let guarded_width = (u64::from(target_width) * 6).div_ceil(5);
+    let guarded_height = (u64::from(target_height) * 6).div_ceil(5);
+    let meets_guard = |scale: turbojpeg::ScalingFactor| {
+        u64::try_from(scale.scale(header.width)).unwrap_or(u64::MAX) >= guarded_width
+            && u64::try_from(scale.scale(header.height)).unwrap_or(u64::MAX) >= guarded_height
+    };
+
+    if meets_guard(turbojpeg::ScalingFactor::ONE_QUARTER) {
+        turbojpeg::ScalingFactor::ONE_QUARTER
+    } else if meets_guard(turbojpeg::ScalingFactor::ONE_HALF) {
+        turbojpeg::ScalingFactor::ONE_HALF
+    } else {
+        turbojpeg::ScalingFactor::ONE
+    }
+}
+
+fn decode_jpeg_with_turbo(
+    data: &[u8],
+    decompressor: &mut turbojpeg::Decompressor,
+    header: turbojpeg::DecompressHeader,
+    scale: turbojpeg::ScalingFactor,
+) -> Result<DynamicImage> {
+    let scaled = header.scaled(scale);
+    let width = u32::try_from(scaled.width)?;
+    let height = u32::try_from(scaled.height)?;
+    let pixel_len = scaled
+        .width
+        .checked_mul(scaled.height)
+        .and_then(|pixels| pixels.checked_mul(3))
+        .ok_or_else(|| anyhow::anyhow!("JPEG pixel buffer size overflow"))?;
+    let mut pixels = vec![0u8; pixel_len];
+    decompressor.set_scaling_factor(scale)?;
+    let image = turbojpeg::Image {
+        pixels: pixels.as_mut_slice(),
+        width: scaled.width,
+        pitch: scaled.width * 3,
+        height: scaled.height,
+        format: turbojpeg::PixelFormat::RGB,
+    };
+    decompressor.decompress(data, image)?;
+    let image = image::RgbImage::from_raw(width, height, pixels)
+        .ok_or_else(|| anyhow::anyhow!("invalid JPEG RGB buffer"))?;
+    Ok(DynamicImage::ImageRgb8(image))
 }
 
 /// Cheap animated-WebP classification used for routing. Full validation and
@@ -168,9 +333,10 @@ fn encode_image(img: DynamicImage, fmt: ImageFormat, jpeg_quality: u8) -> Result
     let mut buf = Vec::new();
     match fmt {
         ImageFormat::Jpeg => {
-            let mut encoder =
-                image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buf, jpeg_quality);
-            encoder.encode_image(&img)?;
+            buf = encode_jpeg_turbo(&img, jpeg_quality)?;
+        }
+        ImageFormat::WebP => {
+            buf = encode_webp_lossless(&img)?;
         }
         ImageFormat::Avif => {
             buf = encode_avif_svt(img)?;
@@ -180,6 +346,47 @@ fn encode_image(img: DynamicImage, fmt: ImageFormat, jpeg_quality: u8) -> Result
         }
     }
     Ok(buf)
+}
+
+fn encode_jpeg_turbo(img: &DynamicImage, quality: u8) -> Result<Vec<u8>> {
+    let rgb = img.to_rgb8();
+    let (width, height) = rgb.dimensions();
+    let mut compressor = turbojpeg::Compressor::new()?;
+    compressor.set_quality(i32::from(quality.clamp(1, 100)))?;
+    // Match image::codecs::jpeg::JpegEncoder's existing 4:2:2 output
+    // characteristic instead of changing chroma detail/size as a side effect
+    // of the backend switch.
+    compressor.set_subsamp(turbojpeg::Subsamp::Sub2x1)?;
+    let image = turbojpeg::Image {
+        pixels: rgb.as_raw().as_slice(),
+        width: usize::try_from(width)?,
+        pitch: usize::try_from(width)? * 3,
+        height: usize::try_from(height)?,
+        format: turbojpeg::PixelFormat::RGB,
+    };
+    Ok(compressor.compress_to_vec(image)?)
+}
+
+fn encode_webp_lossless(img: &DynamicImage) -> Result<Vec<u8>> {
+    let encoded = match img {
+        DynamicImage::ImageRgb8(image) => {
+            webp::Encoder::from_rgb(image.as_raw(), image.width(), image.height()).encode_lossless()
+        }
+        DynamicImage::ImageRgba8(image) => {
+            webp::Encoder::from_rgba(image.as_raw(), image.width(), image.height())
+                .encode_lossless()
+        }
+        _ if img.color().has_alpha() => {
+            let image = img.to_rgba8();
+            webp::Encoder::from_rgba(image.as_raw(), image.width(), image.height())
+                .encode_lossless()
+        }
+        _ => {
+            let image = img.to_rgb8();
+            webp::Encoder::from_rgb(image.as_raw(), image.width(), image.height()).encode_lossless()
+        }
+    };
+    Ok(encoded.to_vec())
 }
 
 /// Encode an 8-bit image as AVIF using SVT-AV1 for the color planes.

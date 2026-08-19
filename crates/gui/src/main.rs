@@ -20,7 +20,7 @@ use cbz_tools_optimizer_core::{
     archive::is_supported_archive_path, format_elapsed, format_size, AnimatedWebpEncoding,
     AnimatedWebpKeyframePolicy, AnimatedWebpOptions, AnimatedWebpOutputPolicy,
     AnimatedWebpResizeFilter, LogMode, OptimizeConfig, OutputFormat, OverwriteMode, ProgressEvent,
-    SizePreset,
+    ResizeFilter, SizePreset,
 };
 use crossbeam_channel::{unbounded, Receiver};
 use eframe::egui;
@@ -134,6 +134,14 @@ fn parse_animated_webp_filter(value: &str) -> AnimatedWebpResizeFilter {
     }
 }
 
+fn parse_resize_filter(value: &str) -> ResizeFilter {
+    match value {
+        "bilinear" => ResizeFilter::Bilinear,
+        "lanczos3" => ResizeFilter::Lanczos3,
+        _ => ResizeFilter::CatmullRom,
+    }
+}
+
 fn parse_animated_webp_keyframes(value: &str) -> AnimatedWebpKeyframePolicy {
     match value {
         "disabled" => AnimatedWebpKeyframePolicy::Disabled,
@@ -149,7 +157,7 @@ fn parse_animated_webp_output_policy(value: &str) -> AnimatedWebpOutputPolicy {
 }
 
 fn animated_webp_keyframes_valid(policy: &str, kmin: i32, kmax: i32) -> bool {
-    policy == "disabled" || (kmin >= 0 && kmax >= 2 && kmin < kmax && kmin >= kmax / 2 + 1)
+    policy == "disabled" || (kmin >= 0 && kmax >= 2 && kmin < kmax && kmin > kmax / 2)
 }
 
 // ---------------------------------------------------------------------------
@@ -352,6 +360,7 @@ impl App {
             jpeg_quality: self.config.jpeg_quality,
             output_format,
             convert_only,
+            resize_filter: parse_resize_filter(&self.config.resize_filter),
             animated_webp: AnimatedWebpOptions {
                 encoding: AnimatedWebpEncoding::Lossy {
                     quality: f32::from(self.config.jpeg_quality),
@@ -953,6 +962,36 @@ impl eframe::App for App {
                                                     );
                                                 }
                                             });
+                                        ui.end_row();
+
+                                        // Static image resize filter (animated WebP has its own settings tab)
+                                        let resize_filter_text = match d.resize_filter.as_str() {
+                                            "bilinear" => s2.resize_filter_bilinear,
+                                            "lanczos3" => s2.resize_filter_lanczos3,
+                                            _ => s2.resize_filter_catmull_rom,
+                                        };
+                                        ui.label(s2.resize_filter_label);
+                                        ui.add_enabled_ui(!d.convert_only, |ui| {
+                                            egui::ComboBox::from_id_salt("resize_filter_combo")
+                                                .selected_text(resize_filter_text)
+                                                .show_ui(ui, |ui| {
+                                                    ui.selectable_value(
+                                                        &mut d.resize_filter,
+                                                        "bilinear".into(),
+                                                        s2.resize_filter_bilinear,
+                                                    );
+                                                    ui.selectable_value(
+                                                        &mut d.resize_filter,
+                                                        "catmull-rom".into(),
+                                                        s2.resize_filter_catmull_rom,
+                                                    );
+                                                    ui.selectable_value(
+                                                        &mut d.resize_filter,
+                                                        "lanczos3".into(),
+                                                        s2.resize_filter_lanczos3,
+                                                    );
+                                                });
+                                        });
                                         ui.end_row();
 
                                         // Convert only

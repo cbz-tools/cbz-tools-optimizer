@@ -63,7 +63,7 @@
     <div class="features">
       <div class="feature">
         <h3>📦 Storage savings</h3>
-        <p>Significantly reduce file size by resizing images to your target resolution.</p>
+        <p>Significantly reduce file size by resizing images to your target resolution with selectable static filters.</p>
       </div>
       <div class="feature">
         <h3>🔄 Format conversion</h3>
@@ -116,6 +116,7 @@ cbz-opt --output-format avif --convert-only *.cbz
 
 # Resize AND convert to WebP in one pass
 cbz-opt --preset ipad --output-format webp input.cbz</code></pre>
+    <p class="note"><strong>--resize-filter</strong> selects static-image interpolation: <code>bilinear</code>, <code>catmull-rom</code> (default), or <code>lanczos3</code>. Animated WebP uses its separate filter setting.</p>
     <p class="note"><strong>--convert-only</strong>: skips resizing entirely. Same-format files are passed through without re-encoding — zero quality loss.</p>
 
     <h2>GUI (Windows)</h2>

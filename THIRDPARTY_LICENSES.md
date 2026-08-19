@@ -37,3 +37,10 @@ and, where needed, in a generated dependency-license report.
 - License: Apache-2.0
 - Source: The `shiguredo_svt_av1` crate on crates.io
 - Release archives include the license text at `third_party/shiguredo_svt_av1/LICENSE`
+
+## Static image acceleration crates
+
+- `fast_image_resize` — MIT OR Apache-2.0; Rust SIMD resize implementation
+- `turbojpeg` / `turbojpeg-sys` — Unlicense OR MIT Rust bindings; libjpeg-turbo is statically built with CMake
+- `webp` / `libwebp-sys` — MIT OR Apache-2.0 Rust wrapper and BSD 3-Clause libwebp native library, statically linked
+- These components do not require additional runtime DLLs in the release package. Their exact versions and transitive notices are recorded in `Cargo.lock` and the generated dependency-license report.
