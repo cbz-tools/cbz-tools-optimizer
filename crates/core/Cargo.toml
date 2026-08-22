@@ -18,6 +18,7 @@ webp-anim.workspace = true
 rayon.workspace = true
 zip.workspace = true
 unrar = { workspace = true, optional = true }
+unrar_sys = { workspace = true, optional = true }
 anyhow.workspace = true
 thiserror.workspace = true
 serde.workspace = true
@@ -27,4 +28,4 @@ clap = { version = "4", features = ["derive"], optional = true }
 
 [features]
 clap = ["dep:clap"]
-rar = ["dep:unrar"]
+rar = ["dep:unrar", "dep:unrar_sys"]

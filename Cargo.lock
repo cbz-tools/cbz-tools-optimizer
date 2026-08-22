@@ -845,7 +845,7 @@ dependencies = [
 
 [[package]]
 name = "cbz-tools-optimizer-cli"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "anyhow",
  "cbz-tools-optimizer-core",
@@ -859,7 +859,7 @@ dependencies = [
 
 [[package]]
 name = "cbz-tools-optimizer-core"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "anyhow",
  "avif-parse",
@@ -876,6 +876,7 @@ dependencies = [
  "thiserror 1.0.69",
  "turbojpeg",
  "unrar",
+ "unrar_sys",
  "webp",
  "webp-anim",
  "zip",
@@ -883,7 +884,7 @@ dependencies = [
 
 [[package]]
 name = "cbz-tools-optimizer-gui"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "anyhow",
  "cbz-tools-optimizer-core",
@@ -899,6 +900,14 @@ dependencies = [
  "serde_json",
  "toml 0.8.23",
  "winapi",
+ "winres",
+]
+
+[[package]]
+name = "cbz-tools-optimizer-launcher"
+version = "0.1.8"
+dependencies = [
+ "sha2",
  "winres",
 ]
 
@@ -3861,6 +3870,17 @@ name = "sha1"
 version = "0.10.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e3bf829a2d51ab4a5ddf1352d8470c140cadc8301b2ae1789db023f01cedd6ba"
+dependencies = [
+ "cfg-if",
+ "cpufeatures",
+ "digest",
+]
+
+[[package]]
+name = "sha2"
+version = "0.10.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a7507d819769d01a365ab707794a4084392c824f54a7a6a7862f8c3d0892b283"
 dependencies = [
  "cfg-if",
  "cpufeatures",

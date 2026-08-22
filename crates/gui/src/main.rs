@@ -5,6 +5,7 @@
 
 #![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 
+mod about;
 mod app_config;
 mod lang;
 
@@ -268,6 +269,7 @@ struct App {
     status_rx: Option<Receiver<StatusUpdate>>,
 
     show_settings: bool,
+    show_about: bool,
     show_bulk_add: bool,
     bulk_add_text: String,
 
@@ -301,6 +303,7 @@ impl App {
             progress: Arc::new(Mutex::new((0, 0))),
             status_rx: None,
             show_settings: false,
+            show_about: false,
             show_bulk_add: false,
             bulk_add_text: String::new(),
             completion_msg: None,
@@ -571,14 +574,22 @@ impl eframe::App for App {
                 ui.label(egui::RichText::new(s.app_title).strong());
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    // Settings button
-                    if ui
-                        .button(egui::RichText::new(ICON_SETTINGS).font(material_icon_font(20.0)))
-                        .clicked()
-                    {
-                        self.settings_draft = self.config.clone();
-                        self.show_settings = true;
-                    }
+                    // Settings menu
+                    ui.menu_button(
+                        egui::RichText::new(ICON_SETTINGS).font(material_icon_font(20.0)),
+                        |ui| {
+                            if ui.button("Settings...").clicked() {
+                                self.settings_draft = self.config.clone();
+                                self.show_settings = true;
+                                ui.close_menu();
+                            }
+                            ui.separator();
+                            if ui.button("About CBZ Optimizer...").clicked() {
+                                self.show_about = true;
+                                ui.close_menu();
+                            }
+                        },
+                    );
 
                     ui.separator();
 
@@ -1230,6 +1241,11 @@ impl eframe::App for App {
                 self.settings_draft = self.config.clone();
                 self.show_settings = false;
             }
+        }
+
+        // ── About window ─────────────────────────────────────────────────
+        if self.show_about {
+            about::show(ctx, &mut self.show_about);
         }
 
         // ── Bulk Add window ───────────────────────────────────────────────

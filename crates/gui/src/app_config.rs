@@ -82,10 +82,15 @@ fn default_animated_webp_output_policy() -> String {
 }
 
 fn config_path() -> PathBuf {
-    let mut path = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("."));
-    path.pop();
-    path.push("cbz-opt-gui.toml");
-    path
+    let config_dir = std::env::var_os("CBZ_OPT_GUI_CONFIG_DIR")
+        .map(PathBuf::from)
+        .filter(|path| path.is_dir())
+        .unwrap_or_else(|| {
+            let mut path = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("."));
+            path.pop();
+            path
+        });
+    config_dir.join("cbz-opt-gui.toml")
 }
 
 impl AppConfig {

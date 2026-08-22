@@ -6,7 +6,7 @@ authors.workspace = true
 license.workspace = true
 
 [[bin]]
-name = "cbz-opt"
+name = "cbz-opt-core"
 path = "src/main.rs"
 
 [dependencies]

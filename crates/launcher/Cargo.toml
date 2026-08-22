@@ -1,0 +1,36 @@
+[package]
+name = "cbz-tools-optimizer-launcher"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+build = "build.rs"
+
+[[bin]]
+name = "cbz-opt"
+path = "src/bin/cbz-opt.rs"
+required-features = ["windows-launcher"]
+
+[[bin]]
+name = "cbz-opt-gui"
+path = "src/bin/cbz-opt-gui.rs"
+required-features = ["windows-launcher"]
+
+[features]
+# The launcher requires Windows core executables and staged runtime inputs.
+# Keep it out of ordinary cross-platform workspace checks and enable it only
+# from the ordered Windows core -> launcher build scripts.
+windows-launcher = []
+
+[dependencies]
+sha2 = "0.10"
+
+[target.'cfg(windows)'.build-dependencies]
+winres = "0.1"
+
+[build-dependencies]
+sha2 = "0.10"
+
+[package.metadata.winres]
+FileDescription = "CBZ Optimizer"
+ProductName = "CBZ Optimizer"

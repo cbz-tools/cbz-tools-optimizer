@@ -65,7 +65,6 @@ fn read_zip_entries(path: &Path) -> Result<Vec<ArchiveEntry>> {
 fn read_rar_entries(path: &Path) -> Result<Vec<ArchiveEntry>> {
     use unrar::Archive;
 
-    ensure_unrar_dll_for_current_target()?;
     let path_str = path
         .to_str()
         .ok_or_else(|| anyhow::anyhow!("RAR path is not valid UTF-8: {}", path.display()))?;
@@ -114,56 +113,10 @@ fn format_rar_error(path: &Path, phase: &str, code: unrar::error::Code) -> anyho
 
     let detail = match code {
         Code::MissingPassword | Code::BadPassword => "password required or invalid",
-        Code::EOpen => "possible DLL missing/load failure",
         _ => "archive error",
     };
     anyhow::anyhow!(
         "RAR {phase} failure ({detail}): path={} code={code:?}",
         path.display()
     )
-}
-
-#[cfg(all(feature = "rar", windows))]
-fn expected_unrar_dll_name() -> &'static str {
-    #[cfg(target_pointer_width = "64")]
-    {
-        "UnRAR64.dll"
-    }
-    #[cfg(target_pointer_width = "32")]
-    {
-        "UnRAR.dll"
-    }
-}
-
-#[cfg(all(feature = "rar", windows))]
-fn ensure_unrar_dll_for_current_target() -> Result<()> {
-    let dll_name = expected_unrar_dll_name();
-    let current_exe = std::env::current_exe().ok();
-    let exe_dir_dll_path = current_exe
-        .as_ref()
-        .and_then(|path| path.parent().map(|dir| dir.join(dll_name)));
-    let cwd_dll_path = Path::new(dll_name).to_path_buf();
-    let resolved_dll_path = exe_dir_dll_path
-        .as_ref()
-        .filter(|path| path.exists())
-        .cloned()
-        .or_else(|| cwd_dll_path.exists().then_some(cwd_dll_path.clone()));
-
-    if resolved_dll_path.is_some() {
-        Ok(())
-    } else {
-        anyhow::bail!(
-            "RAR support is unavailable: expected '{}' next to the executable (fallback: '{}')",
-            exe_dir_dll_path
-                .as_ref()
-                .map(|path| path.display().to_string())
-                .unwrap_or_else(|| format!("<unknown-exe-dir>\\{dll_name}")),
-            cwd_dll_path.display()
-        )
-    }
-}
-
-#[cfg(all(feature = "rar", not(windows)))]
-fn ensure_unrar_dll_for_current_target() -> Result<()> {
-    Ok(())
 }

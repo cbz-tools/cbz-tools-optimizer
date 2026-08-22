@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.8] - 2026-08-22
+
+### Changed
+
+- Windows CLI and GUI releases are now distributed as self-contained executables without external runtime DLLs in the release package.
+- Removed the external UnRAR DLL dependency; RAR/CBR support now uses statically linked UnRAR code.
+
 ## [0.1.7] - 2026-08-19
 
 ### Added

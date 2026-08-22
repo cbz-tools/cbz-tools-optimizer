@@ -74,63 +74,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
-      - name: Build CLI (release)
+      - name: Build cores and launchers (release)
         shell: pwsh
-        env:
-          CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER: link.exe
-        run: cargo build --release --locked --target x86_64-pc-windows-msvc -p cbz-tools-optimizer-cli
-
-      - name: Build GUI (release)
-        shell: pwsh
-        env:
-          CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER: link.exe
-        run: cargo build --release --locked --target x86_64-pc-windows-msvc -p cbz-tools-optimizer-gui
-
-      - name: Validate TurboJPEG CRT and static link
-        shell: pwsh
-        run: |
-          $targetRoot = Join-Path $env:GITHUB_WORKSPACE "target"
-          $cacheFiles = Get-ChildItem $targetRoot -Recurse -File -Filter CMakeCache.txt |
-            Where-Object { $_.FullName -match "turbojpeg-sys" -and $_.FullName -match "[\\/]release[\\/]build[\\/]" }
-          if (!$cacheFiles) {
-            throw "TurboJPEG CMakeCache.txt was not found under the release target directory"
-          }
-
-          $crtMatch = $cacheFiles | Select-String -Pattern "WITH_CRT_DLL:BOOL=ON" -SimpleMatch
-          $toolchainMatch = $cacheFiles | Select-String -Pattern "CMAKE_TOOLCHAIN_FILE:FILEPATH=.*turbojpeg-msvc-runtime.cmake"
-          if (!$crtMatch -or !$toolchainMatch) {
-            throw "TurboJPEG CMakeCache does not confirm WITH_CRT_DLL=ON and the repository toolchain file"
-          }
-
-          $dumpbinCommand = Get-Command dumpbin.exe -ErrorAction SilentlyContinue
-          $dumpbin = if ($dumpbinCommand) { $dumpbinCommand.Source } else { $null }
-          if (!$dumpbin) {
-            $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio/Installer/vswhere.exe"
-            if (Test-Path $vswhere) {
-              $installPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath | Select-Object -First 1
-              if ($installPath) {
-                $dumpbin = Get-ChildItem (Join-Path $installPath "VC/Tools/MSVC") -Recurse -File -Filter dumpbin.exe |
-                  Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
-              }
-            }
-          }
-          if (!$dumpbin) {
-            throw "dumpbin.exe was not found"
-          }
-
-          $binaries = @(
-            (Join-Path $targetRoot "x86_64-pc-windows-msvc/release/cbz-opt.exe"),
-            (Join-Path $targetRoot "x86_64-pc-windows-msvc/release/cbz-opt-gui.exe")
-          )
-          foreach ($binary in $binaries) {
-            if (!(Test-Path $binary)) {
-              throw "Expected release binary was not found: $binary"
-            }
-            $dependents = (& $dumpbin /dependents $binary 2>&1 | Out-String)
-            if ($dependents -match "(?im)^\s*(turbojpeg|libjpeg|jpeg)[^\r\n]*\.dll\s*$") {
-              throw "Static TurboJPEG validation failed for $binary"
-            }
-          }
+        run: .\scripts\build_windows_release.ps1 -Workspace $env:GITHUB_WORKSPACE
 
       - name: Package artifacts
         shell: pwsh
@@ -140,6 +86,40 @@ jobs:
             -Version $tag `
             -Workspace $env:GITHUB_WORKSPACE `
             -OutputDir "target/package"
+
+      - name: Assert Windows release ZIP contents
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $zipPath = Join-Path "target/package" "cbz-tools-optimizer-${{ github.ref_name }}-windows-x64.zip"
+          $archive = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
+          try {
+            $root = "cbz-tools-optimizer-${{ github.ref_name }}-windows-x64/"
+            $expected = @(
+              "cbz-opt.exe",
+              "cbz-opt-gui.exe",
+              "README.md",
+              "LICENSE",
+              "THIRDPARTY_LICENSES.md",
+              "third_party/dav1d/LICENSE",
+              "third_party/svt-av1/LICENSE",
+              "third_party/shiguredo_svt_av1/LICENSE"
+            ) | Sort-Object
+            $actual = @($archive.Entries | Where-Object { !$_.FullName.EndsWith('/') } |
+              ForEach-Object { $_.FullName.Substring($root.Length) } | Sort-Object)
+            if (@(Compare-Object $expected $actual).Count -gt 0) {
+              throw "Windows release ZIP contents differ from the public allowlist: $($actual -join ', ')"
+            }
+            $forbidden = @($archive.Entries | Where-Object {
+              $_.FullName -match '(?i)(UnRAR(?:64)?\.dll|dav1d\.dll|core\.exe$)'
+            })
+            if ($forbidden.Count -gt 0) {
+              throw "Windows release ZIP contains forbidden runtime/core files: $($forbidden.FullName -join ', ')"
+            }
+          }
+          finally {
+            $archive.Dispose()
+          }
 
       - name: Upload Windows release package artifact
         uses: actions/upload-artifact@v4
@@ -190,11 +170,10 @@ jobs:
           tag="${{ github.ref_name }}"
           dir="cbz-tools-optimizer-${tag}-linux-x64"
           mkdir "$dir"
-          cp target/release/cbz-opt "$dir/"
+          cp target/release/cbz-opt-core "$dir/cbz-opt"
           cp README.md LICENSE THIRDPARTY_LICENSES.md "$dir/"
-          mkdir -p "$dir/third_party/dav1d" "$dir/third_party/unrar" "$dir/third_party/svt-av1" "$dir/third_party/shiguredo_svt_av1"
+          mkdir -p "$dir/third_party/dav1d" "$dir/third_party/svt-av1" "$dir/third_party/shiguredo_svt_av1"
           cp third_party/dav1d/LICENSE "$dir/third_party/dav1d/"
-          cp third_party/unrar/LICENSE.txt "$dir/third_party/unrar/"
           cp third_party/svt-av1/LICENSE "$dir/third_party/svt-av1/"
           cp third_party/shiguredo_svt_av1/LICENSE "$dir/third_party/shiguredo_svt_av1/"
           tar czf "${dir}.tar.gz" "$dir"
@@ -235,18 +214,17 @@ jobs:
         run: |
           uname -m
           rustc -vV
-          file target/release/cbz-opt
+          file target/release/cbz-opt-core
 
       - name: Package
         run: |
           tag="${{ github.ref_name }}"
           dir="cbz-tools-optimizer-${tag}-macos-arm64"
           mkdir "$dir"
-          cp target/release/cbz-opt "$dir/"
+          cp target/release/cbz-opt-core "$dir/cbz-opt"
           cp README.md LICENSE THIRDPARTY_LICENSES.md "$dir/"
-          mkdir -p "$dir/third_party/dav1d" "$dir/third_party/unrar" "$dir/third_party/svt-av1" "$dir/third_party/shiguredo_svt_av1"
+          mkdir -p "$dir/third_party/dav1d" "$dir/third_party/svt-av1" "$dir/third_party/shiguredo_svt_av1"
           cp third_party/dav1d/LICENSE "$dir/third_party/dav1d/"
-          cp third_party/unrar/LICENSE.txt "$dir/third_party/unrar/"
           cp third_party/svt-av1/LICENSE "$dir/third_party/svt-av1/"
           cp third_party/shiguredo_svt_av1/LICENSE "$dir/third_party/shiguredo_svt_av1/"
           tar czf "${dir}.tar.gz" "$dir"

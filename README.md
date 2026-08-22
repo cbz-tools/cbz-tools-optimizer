@@ -17,7 +17,7 @@ Download the latest release from [Releases](https://github.com/cbz-tools/cbz-too
 | `cbz-tools-optimizer-vX.Y.Z-linux-x64.tar.gz` | `cbz-opt` (CLI) |
 | `cbz-tools-optimizer-vX.Y.Z-macos-x64.tar.gz` | `cbz-opt` (CLI) |
 
-Extract the archive and run the binary directly — no installation required.
+Extract the archive and run `cbz-opt.exe` or `cbz-opt-gui.exe` directly. No installation is required. Linux and macOS archives remain CLI-only.
 
 ---
 
@@ -173,10 +173,10 @@ The MSVC linker path is pre-configured in `.cargo/config.toml` — no Developer 
 # All crates
 cargo build --release
 
-# CLI only  →  produces cbz-opt(.exe)
+# CLI
 cargo build --release -p cbz-tools-optimizer-cli
 
-# GUI only (Windows)  →  produces cbz-opt-gui.exe
+# GUI (Windows)
 cargo build --release -p cbz-tools-optimizer-gui
 ```
 
