@@ -4,7 +4,9 @@ use shiguredo_svt_av1::{
     ColorFormat, EncodeOptions, Encoder as SvtEncoder, EncoderConfig, FrameData, RcMode, Tune,
 };
 
-use crate::animated_webp::{optimize_animated_webp, AnimatedWebpOutcome};
+use crate::animated_webp::{
+    decode_static_gif, optimize_animated_gif, optimize_animated_webp, AnimatedWebpOutcome,
+};
 use crate::{OptimizeConfig, OutputFormat, ResizeFilter};
 
 /// Supported image extensions for input.
@@ -80,10 +82,68 @@ pub fn resize_image_bytes(
         };
     }
 
-    // Always skip GIF (may be animated)
     if lower.ends_with(".gif") {
-        log::info!("GIF skipped (animation not supported): {entry_name}");
-        return Ok((data.to_vec(), original_ext(entry_name)));
+        let probe = zengif::detect::probe(data)?;
+        if probe.is_animated {
+            return match optimize_animated_gif(
+                data,
+                &config.animated_webp,
+                config.effective_dimensions().0,
+                config.effective_dimensions().1,
+                config.convert_only,
+            )? {
+                AnimatedWebpOutcome::Optimized { bytes, report } => {
+                    log::info!(
+                        "animated GIF converted to WebP: {entry_name} ({} -> {} bytes, {:+.1}%)",
+                        report.input_bytes,
+                        report.encoded_bytes,
+                        report.saved_percent,
+                    );
+                    Ok((bytes, ".webp"))
+                }
+                AnimatedWebpOutcome::KeptOriginal { reason, report } => {
+                    log::info!(
+                        "animated GIF kept: {entry_name} ({reason:?}; {} -> {} bytes)",
+                        report.input_bytes,
+                        report.encoded_bytes,
+                    );
+                    Ok((data.to_vec(), ".gif"))
+                }
+            };
+        }
+
+        // Original-format static GIFs remain byte-identical when no resize or
+        // format conversion is requested. There is intentionally no GIF encoder
+        // in this path; a requested resize under Original selects lossless PNG.
+        let needs_resize = !config.convert_only
+            && target_dimensions(
+                u32::from(probe.width),
+                u32::from(probe.height),
+                config.effective_dimensions().0,
+                config.effective_dimensions().1,
+            )
+            .is_some();
+        if matches!(config.output_format, OutputFormat::Original) && !needs_resize {
+            return Ok((data.to_vec(), ".gif"));
+        }
+
+        let (fmt, ext) = match config.output_format {
+            OutputFormat::Jpeg => (ImageFormat::Jpeg, ".jpg"),
+            OutputFormat::Png => (ImageFormat::Png, ".png"),
+            OutputFormat::Webp => (ImageFormat::WebP, ".webp"),
+            OutputFormat::Avif => (ImageFormat::Avif, ".avif"),
+            // GIF has no static encoder in the selected output policy. PNG is
+            // the lossless non-GIF representation for a resized Original GIF.
+            OutputFormat::Original => (ImageFormat::Png, ".png"),
+        };
+        let img = decode_static_gif(data, &config.animated_webp)?;
+        let processed = if config.convert_only {
+            img
+        } else {
+            resize_image(img, config)?
+        };
+        let encoded = encode_image(processed, fmt, config.jpeg_quality)?;
+        return Ok((encoded, ext));
     }
 
     let (fmt, ext) = match config.output_format {
@@ -150,6 +210,9 @@ fn decode_static_image(
             .decode()
             .map(|image| image.to_image())
             .ok_or_else(|| anyhow::anyhow!("static WebP decode failed"));
+    }
+    if entry_name.ends_with(".gif") {
+        return decode_static_gif(data, &config.animated_webp);
     }
     Ok(image::load_from_memory(data)?)
 }

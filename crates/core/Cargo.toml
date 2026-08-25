@@ -15,6 +15,7 @@ avif-parse.workspace = true
 ravif.workspace = true
 shiguredo_svt_av1.workspace = true
 webp-anim.workspace = true
+zengif.workspace = true
 rayon.workspace = true
 zip.workspace = true
 unrar = { workspace = true, optional = true }

@@ -13,8 +13,15 @@ pub enum ArchiveKind {
 
 /// An archive entry collected before image processing.
 pub(crate) enum ArchiveEntry {
-    Directory(String),
-    File(String, Vec<u8>),
+    Directory {
+        name: String,
+        last_modified: Option<zip::DateTime>,
+    },
+    File {
+        name: String,
+        data: Vec<u8>,
+        last_modified: Option<zip::DateTime>,
+    },
 }
 
 /// Classify supported archive paths by extension.
@@ -49,12 +56,20 @@ fn read_zip_entries(path: &Path) -> Result<Vec<ArchiveEntry>> {
         .map(|index| {
             let mut entry = archive.by_index(index)?;
             let name = entry.name().to_string();
+            let last_modified = entry.last_modified();
             if entry.is_dir() {
-                Ok(ArchiveEntry::Directory(name))
+                Ok(ArchiveEntry::Directory {
+                    name,
+                    last_modified,
+                })
             } else {
                 let mut data = Vec::with_capacity(entry.size() as usize);
                 entry.read_to_end(&mut data)?;
-                Ok(ArchiveEntry::File(name, data))
+                Ok(ArchiveEntry::File {
+                    name,
+                    data,
+                    last_modified,
+                })
             }
         })
         .collect::<std::result::Result<Vec<_>, zip::result::ZipError>>()
@@ -82,8 +97,16 @@ fn read_rar_entries(path: &Path) -> Result<Vec<ArchiveEntry>> {
         };
 
         let name = header.entry().filename.to_string_lossy().into_owned();
+        let last_modified = zip::DateTime::try_from((
+            (header.entry().file_time >> 16) as u16,
+            header.entry().file_time as u16,
+        ))
+        .ok();
         if header.entry().is_directory() {
-            entries.push(ArchiveEntry::Directory(name));
+            entries.push(ArchiveEntry::Directory {
+                name,
+                last_modified,
+            });
             archive = header
                 .skip()
                 .map_err(|error| format_rar_error(path, "skip", error.code))?;
@@ -91,7 +114,11 @@ fn read_rar_entries(path: &Path) -> Result<Vec<ArchiveEntry>> {
             let (data, next) = header
                 .read()
                 .map_err(|error| format_rar_error(path, "read_data", error.code))?;
-            entries.push(ArchiveEntry::File(name, data));
+            entries.push(ArchiveEntry::File {
+                name,
+                data,
+                last_modified,
+            });
             archive = next;
         }
     }

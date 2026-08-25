@@ -8,7 +8,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.1.8"
+version = "0.1.9"
 edition = "2021"
 authors = ["cbz-tools"]
 license = "MIT"
@@ -24,7 +24,7 @@ lto = "thin"
 
 [workspace.dependencies]
 # Image processing
-image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "avif", "avif-native", "bmp", "tiff", "gif"] }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "avif", "avif-native", "bmp", "tiff"] }
 fast_image_resize = { version = "6.1.0", features = ["image"] }
 turbojpeg = { version = "=1.5.1", default-features = false, features = ["cmake", "require-simd"] }
 webp = "=0.3.1"
@@ -34,7 +34,8 @@ avif-parse = "2.1"
 ravif = { version = "0.13", default-features = false }
 shiguredo_svt_av1 = "2026.1.0"
 # Shared codec for animated WebP, published on crates.io.
-webp-anim = "0.1.0"
+webp-anim = "=0.1.1"
+zengif = "=0.7.3"
 # Parallelism
 rayon = "1.10"
 # ZIP

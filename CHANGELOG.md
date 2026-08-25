@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.9] - 2026-08-25
+
+### Added
+
+- GIF input support: static GIFs use the static image pipeline, while animated GIFs are converted to animated WebP while preserving animation timing and loop behavior.
+- Original ZIP/CBZ entry modification timestamps are preserved when rebuilding archives.
+
 ## [0.1.8] - 2026-08-22
 
 ### Changed
@@ -94,7 +101,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Size presets: `ipad` (2048×1536, default), `ipad-air` (2360×1640), `ipad-pro` (2732×2048), `kindle` (1264×1680), `hd` (1280×720), `full-hd` (1920×1080), `four-k` (3840×2160), `custom`
 - Output format selection: `jpeg` (default), `png`, `webp`, `original`
 - Supported input formats: JPEG, PNG, WebP (static), BMP, TIFF
-- Animated WebP and GIF detection — archives containing animations are skipped entirely
+- Initial animated WebP and GIF detection — animation entries were not yet processed by the optimizer
 - `--preset` — size preset selection
 - `--max-width` / `--max-height` — custom dimensions (used when `--preset custom`)
 - `--quality` — JPEG quality (default: 85)

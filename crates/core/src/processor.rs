@@ -159,24 +159,9 @@ where
         .len();
     let entries = read_archive_entries(archive_path)?;
 
-    // GIF animation remains unsupported. Animated WebP is handled per entry by
-    // the dedicated optimization path, so it must not skip the whole archive.
-    let has_unsupported_animation = entries.iter().any(|e| match e {
-        ArchiveEntry::File(name, _) => name.to_lowercase().ends_with(".gif"),
-        ArchiveEntry::Directory(_) => false,
-    });
-
-    if has_unsupported_animation {
-        on_progress(ProgressEvent::ZipSkipped {
-            path: archive_path.display().to_string(),
-            reason: "Skipped: contains GIF (animation is not supported)".to_string(),
-        });
-        return Ok(None);
-    }
-
     let image_count = entries
         .iter()
-        .filter(|e| matches!(e, ArchiveEntry::File(name, _) if is_image(name)))
+        .filter(|e| matches!(e, ArchiveEntry::File { name, .. } if is_image(name)))
         .count();
     on_progress(ProgressEvent::ZipStarted {
         path: archive_path.display().to_string(),
@@ -192,11 +177,29 @@ where
         .into_par_iter()
         .enumerate()
         .map(|(idx, entry)| match entry {
-            ArchiveEntry::Directory(name) => ArchiveEntry::Directory(name),
-            ArchiveEntry::File(name, data) => {
+            ArchiveEntry::Directory {
+                name,
+                last_modified,
+            } => ArchiveEntry::Directory {
+                name,
+                last_modified,
+            },
+            ArchiveEntry::File {
+                name,
+                data,
+                last_modified,
+            } => {
                 let (out_data, out_name) = if is_image(&name) {
                     match resize_image_bytes(&data, &name, config) {
-                        Ok((resized, ext)) => (resized, replace_extension(&name, ext)),
+                        Ok((resized, ext)) => {
+                            let output_name =
+                                if ext == ".gif" && name.to_lowercase().ends_with(".gif") {
+                                    name.clone()
+                                } else {
+                                    replace_extension(&name, ext)
+                                };
+                            (resized, output_name)
+                        }
                         Err(e) => {
                             log::warn!("Resize failed for {name}: {e}");
                             (data, name.clone())
@@ -212,7 +215,11 @@ where
                     total,
                 });
 
-                ArchiveEntry::File(out_name, out_data)
+                ArchiveEntry::File {
+                    name: out_name,
+                    data: out_data,
+                    last_modified,
+                }
             }
         })
         .collect();
@@ -229,17 +236,20 @@ where
         .with_context(|| format!("Failed to create output file: {}", output_path.display()))?;
 
     let mut writer = zip::ZipWriter::new(out_file);
-    let options = SimpleFileOptions::default()
-        .compression_method(zip::CompressionMethod::Deflated)
-        .compression_level(Some(6));
-
     for entry in processed {
         match entry {
-            ArchiveEntry::Directory(name) => {
-                writer.add_directory(&name, SimpleFileOptions::default())?;
+            ArchiveEntry::Directory {
+                name,
+                last_modified,
+            } => {
+                writer.add_directory(&name, archive_directory_options(last_modified))?;
             }
-            ArchiveEntry::File(name, data) => {
-                writer.start_file(&name, options)?;
+            ArchiveEntry::File {
+                name,
+                data,
+                last_modified,
+            } => {
+                writer.start_file(&name, archive_file_options(last_modified))?;
                 writer.write_all(&data)?;
             }
         }
@@ -292,6 +302,30 @@ fn resolve_output_path(input: &Path, config: &OptimizeConfig) -> Result<Option<P
             }
             anyhow::bail!("Could not find available filename after 9999 attempts")
         }
+    }
+}
+
+/// Build file output options without discarding a valid input entry timestamp.
+/// Missing or invalid timestamps intentionally retain zip's normal safe default.
+fn archive_file_options(last_modified: Option<zip::DateTime>) -> SimpleFileOptions {
+    let options = SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated)
+        .compression_level(Some(6));
+    apply_last_modified(options, last_modified)
+}
+
+/// Build directory output options without discarding a valid input timestamp.
+fn archive_directory_options(last_modified: Option<zip::DateTime>) -> SimpleFileOptions {
+    apply_last_modified(SimpleFileOptions::default(), last_modified)
+}
+
+fn apply_last_modified(
+    options: SimpleFileOptions,
+    last_modified: Option<zip::DateTime>,
+) -> SimpleFileOptions {
+    match last_modified.filter(zip::DateTime::is_valid) {
+        Some(last_modified) => options.last_modified_time(last_modified),
+        None => options,
     }
 }
 

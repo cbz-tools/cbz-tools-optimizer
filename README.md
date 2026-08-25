@@ -1,6 +1,6 @@
 # cbz-tools-optimizer
 
-High-performance CBZ optimizer built in Rust — batch resize, compress, and convert images (JPEG/PNG/WebP/AVIF) inside ZIP/CBZ/RAR/CBR archives, fully offline.
+High-performance CBZ optimizer built in Rust — batch resize, compress, and convert images (JPEG/PNG/WebP/AVIF/GIF) inside ZIP/CBZ/RAR/CBR archives, fully offline.
 CLI for Windows / Linux / macOS. Windows GUI included.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -64,6 +64,10 @@ cbz-opt --output-dir ./output input.cbz
 ```bash
 # Convert all images to WebP (no resize)
 cbz-opt --output-format webp --convert-only input.cbz
+
+# Convert Animated GIF entries to Animated WebP (no resize)
+# Animated GIF input is converted to Animated WebP regardless of --output-format
+cbz-opt --convert-only input-with-animated-gif.zip
 
 # Convert to AVIF for maximum compression (no resize)
 cbz-opt --output-format avif --convert-only *.cbz
@@ -139,9 +143,10 @@ RAR/CBR input follows the same UnRAR-based handling as the companion viewer. The
 | AVIF | Yes | Yes |
 | BMP | Yes | Converted to output format |
 | TIFF | Yes | Converted to output format |
-| GIF | Skipped | — |
+| GIF (static) | Yes | Yes |
+| GIF (animated) | Yes | Animated WebP |
 
-Static images are resized and re-encoded using the selected output format and quality settings. Animated WebP uses a dedicated path that preserves frame timing, loop count, and background color, and remains animated WebP regardless of `--output-format`. Animated WebP resize and keyframe behavior can be configured with the corresponding `--animated-webp-*` options. GIF-containing archives are skipped. BMP and TIFF inputs are converted to the selected output format. AVIF is supported as both input and output.
+Static images are resized and re-encoded using the selected output format and quality settings. Static GIFs are decoded through the GIF-specific path and then use the static pipeline; `original` keeps an in-bounds static GIF byte-identical, while a resized `original` GIF is written as PNG because GIF encoding is not included. Animated WebP and animated GIF use dedicated paths that preserve frame timing, loop count, and animation; animated GIF input is converted to Animated WebP regardless of `--output-format`, except that `keep-original-if-larger` may retain the source GIF and its original entry name. Animated WebP resize and keyframe behavior can be configured with the corresponding `--animated-webp-*` options. BMP and TIFF inputs are converted to the selected output format. AVIF is supported as both input and output.
 
 ---
 
@@ -200,6 +205,7 @@ Multiple ZIP/CBZ/RAR/CBR files
 ```
 
 - Images already within the pixel-dimension limit are not resized, but are still encoded into the selected output format in normal mode. To preserve their bytes, use `--convert-only` with the matching output format.
+- Animated GIF frames are decoded and encoded sequentially; `--convert-only` still converts them to Animated WebP but leaves their canvas dimensions unchanged.
 - JPEG DCT pre-scaling is deliberately conservative: the final target dimensions receive a 20% guard, and only 1/4, 1/2, or full decode are considered so the DCT result does not undershoot the guarded target.
 - Each archive is processed independently; one failure does not abort others
 - Default thread count is **half of logical CPUs** to avoid saturating the system (override with `--threads N`)

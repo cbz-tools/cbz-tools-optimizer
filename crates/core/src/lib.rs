@@ -261,8 +261,9 @@ pub struct OptimizeConfig {
     /// Resampling filter used for static images that need resizing.
     #[serde(default)]
     pub resize_filter: ResizeFilter,
-    /// Dedicated settings for animated WebP entries. They remain WebP and do
-    /// not use `output_format`, `jpeg_quality`, or `convert_only`.
+    /// Dedicated settings for animated WebP entries and animated GIF input.
+    /// Animated WebP remains WebP and animated GIF input is converted to WebP;
+    /// animated GIF `convert_only` selects a no-op resize plan only.
     #[serde(default)]
     pub animated_webp: AnimatedWebpOptions,
     /// Log output mode
@@ -351,7 +352,7 @@ pub enum ProgressEvent {
         input_bytes: u64,
         output_bytes: u64,
     },
-    /// ZIP skipped (e.g. contains animated WebP or GIF)
+    /// ZIP skipped by archive/output policy
     ZipSkipped { path: String, reason: String },
     /// ZIP processing error
     ZipError { path: String, message: String },
