@@ -196,22 +196,29 @@ Please use the provided issue templates.
 
 ## How It Works
 
-```
+```text
 Multiple ZIP/CBZ/RAR/CBR files
-  └── rayon::par_iter()   ← parallel across archives
-        └── each archive entry
-              └── rayon::par_iter()   ← parallel across images
-                    └── resize / convert with selected static filter
+  └── process archives in parallel
+        └── process image entries in parallel
+              ├── Static images
+              │     └── decode → resize if needed → encode
+              │
+              ├── Animated WebP
+              │     └── animated decode → resize if needed → encode
+              │
+              └── Animated GIF
+                    └── GIF decode → Animated WebP encode
 ```
 
 - Images already within the pixel-dimension limit are not resized, but are still encoded into the selected output format in normal mode. To preserve their bytes, use `--convert-only` with the matching output format.
-- Animated GIF frames are decoded and encoded sequentially; `--convert-only` still converts them to Animated WebP but leaves their canvas dimensions unchanged.
+- Animated WebP and Animated GIF are processed through dedicated animation paths that preserve frame timing, loop count, and animation.
+- Animated GIF frames are decoded and encoded sequentially. Animated GIF input is converted to Animated WebP; `--convert-only` leaves the canvas dimensions unchanged.
 - JPEG DCT pre-scaling is deliberately conservative: the final target dimensions receive a 20% guard, and only 1/4, 1/2, or full decode are considered so the DCT result does not undershoot the guarded target.
-- Each archive is processed independently; one failure does not abort others
-- Default thread count is **half of logical CPUs** to avoid saturating the system (override with `--threads N`)
-- Output file conflict is controlled by `--overwrite-mode` (default: skip existing files)
-- A log file (`cbz-opt_YYYYMMDD_HHMMSS.log`) is written when `--log-mode both` or `file` is specified
-- On completion, total file size savings and elapsed time are reported
+- Each archive is processed independently; one failure does not abort others.
+- Default thread count is **half of logical CPUs** to avoid saturating the system (override with `--threads N`).
+- Output file conflict is controlled by `--overwrite-mode` (default: skip existing files).
+- A log file (`cbz-opt_YYYYMMDD_HHMMSS.log`) is written when `--log-mode both` or `file` is specified.
+- On completion, total file size savings and elapsed time are reported.
 
 ---
 
