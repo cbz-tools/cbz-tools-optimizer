@@ -43,7 +43,7 @@ struct Args {
     #[arg(short, long, default_value = "_new")]
     suffix: String,
 
-    /// Number of threads (0 = auto: half of logical CPUs)
+    /// Number of threads (0 = auto: half of logical CPUs, minimum 1)
     #[arg(short, long, default_value_t = 0)]
     threads: usize,
 
@@ -234,7 +234,7 @@ fn main() -> Result<()> {
                     " ".to_string()
                 },
                 if config.threads == 0 {
-                    "auto (half of CPUs)".to_string()
+                    "auto (half of logical CPUs, minimum 1)".to_string()
                 } else {
                     config.threads.to_string()
                 }
@@ -255,7 +255,7 @@ fn main() -> Result<()> {
                     " ".to_string()
                 },
                 if config.threads == 0 {
-                    "auto (half of CPUs)".to_string()
+                    "auto (half of logical CPUs, minimum 1)".to_string()
                 } else {
                     config.threads.to_string()
                 }
@@ -420,7 +420,7 @@ fn write_log(
     };
     let format_name = format!("{:?}", config.output_format).to_lowercase();
     let threads_str = if config.threads == 0 {
-        "auto (half of CPUs)".to_string()
+        "auto (half of logical CPUs, minimum 1)".to_string()
     } else {
         config.threads.to_string()
     };

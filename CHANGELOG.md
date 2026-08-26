@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GIF input support: static GIFs use the static image pipeline, while animated GIFs are converted to animated WebP while preserving animation timing and loop behavior.
 - Original ZIP/CBZ entry modification timestamps are preserved when rebuilding archives.
 
+### Changed
+
+- Large ZIP/CBZ and RAR/CBR archives now use less memory during optimization through a bounded, ordered pipeline.
+
 ## [0.1.8] - 2026-08-22
 
 ### Changed
