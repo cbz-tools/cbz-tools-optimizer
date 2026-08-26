@@ -847,8 +847,7 @@ impl eframe::App for App {
             egui::Window::new(s.settings)
                 .collapsible(false)
                 .resizable(false)
-                .default_size(egui::vec2(526.0, 398.0))
-                .min_width(526.0)
+                .fixed_size(egui::vec2(526.0, 450.0))
                 .pivot(egui::Align2::CENTER_CENTER)
                 .default_pos(ctx.screen_rect().center())
                 .open(&mut open)
@@ -881,14 +880,15 @@ impl eframe::App for App {
                             .insert_temp(egui::Id::new("cbz_opt_settings_tab"), selected_tab);
                     });
 
-                    // Reserve the footer row so the action buttons stay attached to
-                    // the bottom edge while the settings content scrolls above it.
-                    const SETTINGS_FOOTER_HEIGHT: f32 = 34.0;
-                    let scroll_height = (ui.available_height() - SETTINGS_FOOTER_HEIGHT).max(0.0);
+                    // Keep the settings content in a fixed viewport. The window itself is fixed
+                    // too, so content growth is handled by scrolling instead of resizing the
+                    // window or feeding leftover height back into the layout.
+                    const SETTINGS_SCROLL_HEIGHT: f32 = 330.0;
                     ui.set_min_width(494.0);
                     egui::ScrollArea::vertical()
                         .auto_shrink([false, false])
-                        .max_height(scroll_height)
+                        .min_scrolled_height(SETTINGS_SCROLL_HEIGHT)
+                        .max_height(SETTINGS_SCROLL_HEIGHT)
                         .show(ui, |ui| {
                             let d = &mut self.settings_draft;
 
@@ -1198,42 +1198,76 @@ impl eframe::App for App {
                                     }
                                 });
                         });
-                    let footer_spacer = (ui.available_height() - SETTINGS_FOOTER_HEIGHT).max(0.0);
-                    ui.add_space(footer_spacer);
                     ui.separator();
                     let keyframes_valid = animated_webp_keyframes_valid(
                         &self.settings_draft.animated_webp_keyframes,
                         self.settings_draft.animated_webp_kmin,
                         self.settings_draft.animated_webp_kmax,
                     );
-                    ui.horizontal(|ui| {
-                        if ui
-                            .add_enabled(keyframes_valid, egui::Button::new("OK"))
-                            .clicked()
-                        {
-                            self.config = self.settings_draft.clone();
-                            self.lang = match self.config.lang.as_str() {
-                                "zh" => Lang::Zh,
-                                "ja" => Lang::Ja,
-                                _ => Lang::En,
-                            };
-                            self.config.save();
-                            self.show_settings = false;
-                        }
-                        if ui.button("Cancel").clicked() {
-                            self.settings_draft = self.config.clone();
-                            self.show_settings = false;
-                        }
-                        let s2 = strings(&self.lang);
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            if ui.button(s2.reset_defaults).clicked() {
-                                self.settings_draft = AppConfig {
-                                    lang: self.settings_draft.lang.clone(),
-                                    window_x: self.settings_draft.window_x,
-                                    window_y: self.settings_draft.window_y,
-                                    ..AppConfig::default()
+                    const SETTINGS_BUTTON_SIZE: [f32; 2] = [120.0, 30.0];
+                    const SETTINGS_BUTTON_TEXT_SIZE: f32 = 13.0;
+                    ui.scope(|ui| {
+                        // Keep the localized labels on one line inside the fixed-width buttons.
+                        ui.style_mut().spacing.button_padding.x = 4.0;
+                        ui.horizontal(|ui| {
+                            let ok_clicked = ui
+                                .add_enabled_ui(keyframes_valid, |ui| {
+                                    ui.add_sized(
+                                        SETTINGS_BUTTON_SIZE,
+                                        egui::Button::new(
+                                            egui::RichText::new("OK")
+                                                .size(SETTINGS_BUTTON_TEXT_SIZE),
+                                        ),
+                                    )
+                                })
+                                .inner
+                                .clicked();
+                            if ok_clicked {
+                                self.config = self.settings_draft.clone();
+                                self.lang = match self.config.lang.as_str() {
+                                    "zh" => Lang::Zh,
+                                    "ja" => Lang::Ja,
+                                    _ => Lang::En,
                                 };
+                                self.config.save();
+                                self.show_settings = false;
                             }
+                            if ui
+                                .add_sized(
+                                    SETTINGS_BUTTON_SIZE,
+                                    egui::Button::new(
+                                        egui::RichText::new("Cancel")
+                                            .size(SETTINGS_BUTTON_TEXT_SIZE),
+                                    ),
+                                )
+                                .clicked()
+                            {
+                                self.settings_draft = self.config.clone();
+                                self.show_settings = false;
+                            }
+                            let s2 = strings(&self.lang);
+                            ui.with_layout(
+                                egui::Layout::right_to_left(egui::Align::Center),
+                                |ui| {
+                                    if ui
+                                        .add_sized(
+                                            SETTINGS_BUTTON_SIZE,
+                                            egui::Button::new(
+                                                egui::RichText::new(s2.reset_defaults)
+                                                    .size(SETTINGS_BUTTON_TEXT_SIZE),
+                                            ),
+                                        )
+                                        .clicked()
+                                    {
+                                        self.settings_draft = AppConfig {
+                                            lang: self.settings_draft.lang.clone(),
+                                            window_x: self.settings_draft.window_x,
+                                            window_y: self.settings_draft.window_y,
+                                            ..AppConfig::default()
+                                        };
+                                    }
+                                },
+                            );
                         });
                     });
                 });
