@@ -1,5 +1,6 @@
 pub mod animated_webp;
 pub mod archive;
+pub(crate) mod gif;
 pub mod processor;
 pub mod resize;
 
@@ -251,7 +252,7 @@ pub struct OptimizeConfig {
     pub output_dir: Option<std::path::PathBuf>,
     /// Output filename suffix (e.g. "_new")
     pub output_suffix: String,
-    /// Number of threads (0 = auto)
+    /// Number of threads (0 = auto = half of logical CPUs, minimum 1)
     pub threads: usize,
     /// Output image format
     pub output_format: OutputFormat,

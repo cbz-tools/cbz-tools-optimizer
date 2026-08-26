@@ -4,9 +4,8 @@ use shiguredo_svt_av1::{
     ColorFormat, EncodeOptions, Encoder as SvtEncoder, EncoderConfig, FrameData, RcMode, Tune,
 };
 
-use crate::animated_webp::{
-    decode_static_gif, optimize_animated_gif, optimize_animated_webp, AnimatedWebpOutcome,
-};
+use crate::animated_webp::{optimize_animated_webp, AnimatedWebpOutcome};
+use crate::gif::{decode_static_gif, optimize_animated_gif};
 use crate::{OptimizeConfig, OutputFormat, ResizeFilter};
 
 /// Supported image extensions for input.
