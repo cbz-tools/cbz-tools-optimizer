@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.10] - 2026-08-26
+
+### Changed
+
+- Concurrent archive processing is limited to the configured thread count, keeping CLI and GUI processing status aligned with active archives.
+
 ## [0.1.9] - 2026-08-25
 
 ### Added

@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::fs::{self, File, OpenOptions};
 use std::io::Write;
 use std::path::{Component, Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 
 use anyhow::{Context, Result};
@@ -247,65 +247,89 @@ where
     });
 
     let outcomes: Vec<ArchiveOutcome> = std::thread::scope(|scope| {
-        let handles: Vec<_> = archive_paths
-            .iter()
-            .zip(plans.iter())
-            .map(|(path, plan)| {
+        let next_index = Arc::new(AtomicUsize::new(0));
+        let worker_count = effective_threads.min(archive_paths.len());
+        let handles: Vec<_> = (0..worker_count)
+            .map(|_| {
                 let cb = Arc::clone(&on_progress);
                 let cfg = Arc::clone(&config);
                 let pipeline_limits = Arc::clone(&pipeline_limits);
                 let pool = &pool;
+                let next_index = Arc::clone(&next_index);
+                let plans = &plans;
 
                 scope.spawn(move || {
-                    // Catch panics to prevent them from propagating.
-                    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                        process_one_archive(
-                            path,
-                            plan,
-                            &cfg,
-                            Arc::clone(&cb),
-                            &pipeline_limits,
-                            pool,
-                        )
-                    }));
+                    let mut outcomes = Vec::new();
+                    loop {
+                        let index = next_index.fetch_add(1, Ordering::Relaxed);
+                        let Some((path, plan)) = archive_paths.get(index).zip(plans.get(index))
+                        else {
+                            break;
+                        };
 
-                    match result {
-                        Ok(Ok(Some((out, input_bytes)))) => {
-                            let output_bytes = out.metadata().map(|m| m.len()).unwrap_or(0);
-                            cb(ProgressEvent::ZipDone {
-                                path: path.display().to_string(),
-                                output_path: out.display().to_string(),
-                                input_bytes,
-                                output_bytes,
-                            });
-                            ArchiveOutcome::Done {
-                                input_bytes,
-                                output_bytes,
-                            }
-                        }
-                        Ok(Ok(None)) => ArchiveOutcome::Skipped,
-                        Ok(Err(e)) => {
-                            cb(ProgressEvent::ZipError {
-                                path: path.display().to_string(),
-                                message: e.to_string(),
-                            });
-                            ArchiveOutcome::Failed
-                        }
-                        Err(_panic) => {
-                            cb(ProgressEvent::ZipError {
-                                path: path.display().to_string(),
-                                message: "Unexpected error occurred".to_string(),
-                            });
-                            ArchiveOutcome::Failed
-                        }
+                        let outcome =
+                            match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                                // Catch panics to prevent them from propagating.
+                                let result =
+                                    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                                        process_one_archive(
+                                            path,
+                                            plan,
+                                            &cfg,
+                                            Arc::clone(&cb),
+                                            &pipeline_limits,
+                                            pool,
+                                        )
+                                    }));
+
+                                match result {
+                                    Ok(Ok(Some((out, input_bytes)))) => {
+                                        let output_bytes =
+                                            out.metadata().map(|m| m.len()).unwrap_or(0);
+                                        cb(ProgressEvent::ZipDone {
+                                            path: path.display().to_string(),
+                                            output_path: out.display().to_string(),
+                                            input_bytes,
+                                            output_bytes,
+                                        });
+                                        ArchiveOutcome::Done {
+                                            input_bytes,
+                                            output_bytes,
+                                        }
+                                    }
+                                    Ok(Ok(None)) => ArchiveOutcome::Skipped,
+                                    Ok(Err(e)) => {
+                                        cb(ProgressEvent::ZipError {
+                                            path: path.display().to_string(),
+                                            message: e.to_string(),
+                                        });
+                                        ArchiveOutcome::Failed
+                                    }
+                                    Err(_panic) => {
+                                        cb(ProgressEvent::ZipError {
+                                            path: path.display().to_string(),
+                                            message: "Unexpected error occurred".to_string(),
+                                        });
+                                        ArchiveOutcome::Failed
+                                    }
+                                }
+                            })) {
+                                Ok(outcome) => outcome,
+                                Err(_panic) => ArchiveOutcome::Failed,
+                            };
+                        outcomes.push((index, outcome));
                     }
+                    outcomes
                 })
             })
             .collect();
-        handles
+
+        let mut outcomes: Vec<_> = handles
             .into_iter()
-            .map(|handle| handle.join().unwrap_or(ArchiveOutcome::Failed))
-            .collect()
+            .flat_map(|handle| handle.join().unwrap_or_default())
+            .collect();
+        outcomes.sort_by_key(|(index, _)| *index);
+        outcomes.into_iter().map(|(_, outcome)| outcome).collect()
     });
 
     let succeeded = outcomes
