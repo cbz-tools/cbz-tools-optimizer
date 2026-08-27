@@ -1,4 +1,7 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+
+#[cfg(windows)]
+use std::os::windows::fs::MetadataExt;
 
 #[derive(Clone, Copy)]
 pub struct EmbeddedAsset {
@@ -31,6 +34,7 @@ pub fn run_gui(assets: &[EmbeddedAsset]) -> i32 {
 #[cfg(windows)]
 fn run_cli_impl(assets: &[EmbeddedAsset]) -> Result<i32, String> {
     let runtime_dir = ensure_runtime(assets)?;
+    cleanup_old_runtime_directories(&runtime_dir);
     let core_path = runtime_dir.join("cbz-opt-core.exe");
     let status = std::process::Command::new(core_path)
         .args(std::env::args_os().skip(1))
@@ -47,6 +51,7 @@ fn run_cli_impl(_assets: &[EmbeddedAsset]) -> Result<i32, String> {
 #[cfg(windows)]
 fn run_gui_impl(assets: &[EmbeddedAsset]) -> Result<i32, String> {
     let runtime_dir = ensure_runtime(assets)?;
+    cleanup_old_runtime_directories(&runtime_dir);
     let core_path = runtime_dir.join("cbz-opt-gui-core.exe");
     let config_dir = launcher_executable_dir()?;
     std::process::Command::new(core_path)
@@ -77,9 +82,80 @@ const APP_ID: &str = "cbz-tools-optimizer";
 #[cfg(windows)]
 const RUNTIME_SUBDIRECTORY: &str = "runtime";
 #[cfg(windows)]
+const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x0000_0400;
+#[cfg(windows)]
 const MOVEFILE_REPLACE_EXISTING: u32 = 0x0000_0001;
 #[cfg(windows)]
 const MOVEFILE_WRITE_THROUGH: u32 = 0x0000_0008;
+
+#[cfg(windows)]
+fn cleanup_old_runtime_directories(current_runtime_dir: &Path) {
+    let Some(runtime_root) = current_runtime_dir.parent() else {
+        return;
+    };
+    let Some(current_version) = parse_release_version(env!("CARGO_PKG_VERSION")) else {
+        return;
+    };
+    let Ok(entries) = std::fs::read_dir(runtime_root) else {
+        return;
+    };
+
+    for entry in entries.flatten() {
+        let Ok(metadata) = entry.metadata() else {
+            continue;
+        };
+        if !metadata.is_dir()
+            || metadata.is_symlink()
+            || metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
+        {
+            continue;
+        }
+
+        let name = entry.file_name();
+        let Some(name) = name.to_str() else {
+            continue;
+        };
+        let Some(version) = parse_release_version(name) else {
+            continue;
+        };
+        if version < current_version {
+            let _ = std::fs::remove_dir_all(entry.path());
+        }
+    }
+}
+
+#[cfg(windows)]
+fn parse_release_version(name: &str) -> Option<(u64, u64, u64)> {
+    let components: Vec<_> = name.split('.').collect();
+    if components.len() != 3 {
+        return None;
+    }
+
+    let [major, minor, patch] = components.as_slice() else {
+        return None;
+    };
+    Some((
+        parse_release_component(major)?,
+        parse_release_component(minor)?,
+        parse_release_component(patch)?,
+    ))
+}
+
+#[cfg(windows)]
+fn parse_release_component(component: &str) -> Option<u64> {
+    if component == "0" {
+        return Some(0);
+    }
+
+    if component.is_empty()
+        || component.starts_with('0')
+        || !component.bytes().all(|byte| byte.is_ascii_digit())
+    {
+        return None;
+    }
+
+    component.parse().ok()
+}
 
 #[cfg(windows)]
 fn ensure_runtime(assets: &[EmbeddedAsset]) -> Result<PathBuf, String> {

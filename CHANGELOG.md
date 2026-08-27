@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.11] - 2026-08-27
+
+### Changed
+
+- Runtime directories older than the current version are cleaned on a best-effort basis during launcher startup.
+
 ## [0.1.10] - 2026-08-26
 
 ### Changed
