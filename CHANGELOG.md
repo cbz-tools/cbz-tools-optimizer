@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.12] - 2026-09-09
+
+### Fixed
+
+- JPEG, WebP, and TIFF images now apply supported orientation metadata before resizing and re-encoding, including animated WebP frames.
+
+### Changed
+
+- Windows releases no longer publish a separate SHA-256 sidecar file; GitHub provides a built-in digest for each release asset.
+
 ## [0.1.11] - 2026-08-27
 
 ### Changed

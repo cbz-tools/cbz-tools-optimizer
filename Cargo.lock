@@ -867,7 +867,7 @@ dependencies = [
 
 [[package]]
 name = "cbz-tools-optimizer-cli"
-version = "0.1.11"
+version = "0.1.12"
 dependencies = [
  "anyhow",
  "cbz-tools-optimizer-core",
@@ -881,7 +881,7 @@ dependencies = [
 
 [[package]]
 name = "cbz-tools-optimizer-core"
-version = "0.1.11"
+version = "0.1.12"
 dependencies = [
  "anyhow",
  "avif-parse",
@@ -907,7 +907,7 @@ dependencies = [
 
 [[package]]
 name = "cbz-tools-optimizer-gui"
-version = "0.1.11"
+version = "0.1.12"
 dependencies = [
  "anyhow",
  "cbz-tools-optimizer-core",
@@ -928,7 +928,7 @@ dependencies = [
 
 [[package]]
 name = "cbz-tools-optimizer-launcher"
-version = "0.1.11"
+version = "0.1.12"
 dependencies = [
  "sha2",
  "winres",

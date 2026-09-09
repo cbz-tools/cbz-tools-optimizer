@@ -14,7 +14,6 @@ $ErrorActionPreference = "Stop"
 $packageName = "cbz-tools-optimizer-$Version-windows-x64"
 $stageDir = [System.IO.Path]::GetFullPath((Join-Path $OutputDir $packageName))
 $zipPath = [System.IO.Path]::GetFullPath((Join-Path $OutputDir "$packageName.zip"))
-$shaPath = "$zipPath.sha256"
 
 function Copy-File {
   param(
@@ -37,9 +36,6 @@ if (Test-Path $stageDir) {
 }
 if (Test-Path $zipPath) {
   Remove-Item $zipPath -Force
-}
-if (Test-Path $shaPath) {
-  Remove-Item $shaPath -Force
 }
 
 New-Item -ItemType Directory -Force -Path $stageDir | Out-Null
@@ -90,6 +86,3 @@ try {
 finally {
   $archive.Dispose()
 }
-
-$hash = Get-FileHash -Algorithm SHA256 -Path $zipPath
-"$($hash.Hash.ToLowerInvariant())  $($hash.Path | Split-Path -Leaf)" | Set-Content -Path $shaPath

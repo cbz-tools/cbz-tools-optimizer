@@ -1,5 +1,8 @@
+use std::io::Cursor;
+
 use anyhow::Result;
-use image::{DynamicImage, ImageFormat, RgbaImage};
+use image::metadata::Orientation;
+use image::{DynamicImage, ImageDecoder, ImageFormat, ImageReader, RgbaImage};
 use shiguredo_svt_av1::{
     ColorFormat, EncodeOptions, Encoder as SvtEncoder, EncoderConfig, FrameData, RcMode, Tune,
 };
@@ -51,6 +54,18 @@ pub fn resize_image_bytes(
     config: &OptimizeConfig,
 ) -> Result<(Vec<u8>, &'static str)> {
     let lower = entry_name.to_lowercase();
+
+    // Keep animated WebP byte-identical when convert-only requests the same
+    // format, including any source Orientation metadata.
+    if lower.ends_with(".webp")
+        && config.convert_only
+        && matches!(
+            config.output_format,
+            OutputFormat::Original | OutputFormat::Webp
+        )
+    {
+        return Ok((data.to_vec(), ".webp"));
+    }
 
     // Animated WebP has a dedicated path. It stays WebP regardless of the
     // archive-wide static output format or convert-only setting.
@@ -205,15 +220,21 @@ fn decode_static_image(
         return decode_jpeg(data, config);
     }
     if entry_name.ends_with(".webp") {
-        return webp::Decoder::new(data)
+        let mut image = webp::Decoder::new(data)
             .decode()
             .map(|image| image.to_image())
-            .ok_or_else(|| anyhow::anyhow!("static WebP decode failed"));
+            .ok_or_else(|| anyhow::anyhow!("static WebP decode failed"))?;
+        apply_input_orientation(&mut image, data);
+        return Ok(image);
     }
     if entry_name.ends_with(".gif") {
         return decode_static_gif(data, &config.animated_webp);
     }
-    Ok(image::load_from_memory(data)?)
+    let mut image = image::load_from_memory(data)?;
+    if entry_name.ends_with(".tiff") || entry_name.ends_with(".tif") {
+        apply_input_orientation(&mut image, data);
+    }
+    Ok(image)
 }
 
 /// Resize DynamicImage while preserving aspect ratio and its native pixel type.
@@ -288,14 +309,25 @@ fn blank_like(img: &DynamicImage, width: u32, height: u32) -> DynamicImage {
 }
 
 fn decode_jpeg(data: &[u8], config: &OptimizeConfig) -> Result<DynamicImage> {
+    let orientation = input_orientation(data);
     let mut decompressor = match turbojpeg::Decompressor::new() {
         Ok(value) => value,
-        Err(error) => return jpeg_image_fallback(data, format!("TurboJPEG init failed: {error}")),
+        Err(error) => {
+            return jpeg_image_fallback(
+                data,
+                orientation,
+                format!("TurboJPEG init failed: {error}"),
+            )
+        }
     };
     let header = match decompressor.read_header(data) {
         Ok(value) => value,
         Err(error) => {
-            return jpeg_image_fallback(data, format!("TurboJPEG header failed: {error}"))
+            return jpeg_image_fallback(
+                data,
+                orientation,
+                format!("TurboJPEG header failed: {error}"),
+            )
         }
     };
 
@@ -305,45 +337,114 @@ fn decode_jpeg(data: &[u8], config: &OptimizeConfig) -> Result<DynamicImage> {
         header.colorspace,
         turbojpeg::Colorspace::CMYK | turbojpeg::Colorspace::YCCK
     ) {
-        return jpeg_image_fallback(data, "CMYK/YCCK JPEG".to_string());
+        return jpeg_image_fallback(data, orientation, "CMYK/YCCK JPEG".to_string());
     }
 
     let source = (
         u32::try_from(header.width).unwrap_or(u32::MAX),
         u32::try_from(header.height).unwrap_or(u32::MAX),
     );
+    let logical_source = oriented_dimensions(source, orientation);
     let final_dimensions = target_dimensions(
-        source.0,
-        source.1,
+        logical_source.0,
+        logical_source.1,
         config.effective_dimensions().0,
         config.effective_dimensions().1,
     );
     let scale = match (config.convert_only, final_dimensions, header.is_lossless) {
-        (false, Some(dimensions), false) => choose_jpeg_dct_scale(&header, dimensions),
+        (false, Some(dimensions), false) => choose_jpeg_dct_scale(&header, dimensions, orientation),
         _ => turbojpeg::ScalingFactor::ONE,
     };
 
     match decode_jpeg_with_turbo(data, &mut decompressor, header, scale) {
-        Ok(image) => Ok(image),
-        Err(error) => jpeg_image_fallback(data, format!("TurboJPEG decode failed: {error}")),
+        Ok(mut image) => {
+            image.apply_orientation(orientation);
+            Ok(image)
+        }
+        Err(error) => jpeg_image_fallback(
+            data,
+            orientation,
+            format!("TurboJPEG decode failed: {error}"),
+        ),
     }
 }
 
-fn jpeg_image_fallback(data: &[u8], reason: String) -> Result<DynamicImage> {
+fn jpeg_image_fallback(
+    data: &[u8],
+    orientation: Orientation,
+    reason: String,
+) -> Result<DynamicImage> {
     log::debug!("using image full-decode fallback for JPEG ({reason})");
-    image::load_from_memory(data)
-        .map_err(|fallback| anyhow::anyhow!("{reason}; image fallback failed: {fallback}"))
+    let mut image = image::load_from_memory(data)
+        .map_err(|fallback| anyhow::anyhow!("{reason}; image fallback failed: {fallback}"))?;
+    image.apply_orientation(orientation);
+    Ok(image)
+}
+
+pub(crate) fn input_orientation(data: &[u8]) -> Orientation {
+    let Ok(reader) = ImageReader::new(Cursor::new(data)).with_guessed_format() else {
+        return Orientation::NoTransforms;
+    };
+    let Ok(mut decoder) = reader.into_decoder() else {
+        return Orientation::NoTransforms;
+    };
+    if data.starts_with(b"RIFF") && data.get(8..12) == Some(b"WEBP".as_slice()) {
+        return decoder
+            .exif_metadata()
+            .ok()
+            .flatten()
+            .and_then(|exif| {
+                Orientation::from_exif_chunk(
+                    exif.strip_prefix(b"Exif\0\0").unwrap_or(exif.as_slice()),
+                )
+            })
+            .unwrap_or(Orientation::NoTransforms);
+    }
+    decoder.orientation().unwrap_or(Orientation::NoTransforms)
+}
+
+fn apply_input_orientation(image: &mut DynamicImage, data: &[u8]) {
+    image.apply_orientation(input_orientation(data));
+}
+
+pub(crate) fn oriented_dimensions(
+    (width, height): (u32, u32),
+    orientation: Orientation,
+) -> (u32, u32) {
+    if matches!(
+        orientation,
+        Orientation::Rotate90
+            | Orientation::Rotate90FlipH
+            | Orientation::Rotate270
+            | Orientation::Rotate270FlipH
+    ) {
+        (height, width)
+    } else {
+        (width, height)
+    }
 }
 
 fn choose_jpeg_dct_scale(
     header: &turbojpeg::DecompressHeader,
     (target_width, target_height): (u32, u32),
+    orientation: Orientation,
 ) -> turbojpeg::ScalingFactor {
+    let (source_width, source_height) = if matches!(
+        orientation,
+        Orientation::Rotate90
+            | Orientation::Rotate90FlipH
+            | Orientation::Rotate270
+            | Orientation::Rotate270FlipH
+    ) {
+        (header.height, header.width)
+    } else {
+        (header.width, header.height)
+    };
     let guarded_width = (u64::from(target_width) * 6).div_ceil(5);
     let guarded_height = (u64::from(target_height) * 6).div_ceil(5);
     let meets_guard = |scale: turbojpeg::ScalingFactor| {
-        u64::try_from(scale.scale(header.width)).unwrap_or(u64::MAX) >= guarded_width
-            && u64::try_from(scale.scale(header.height)).unwrap_or(u64::MAX) >= guarded_height
+        u64::try_from(scale.scale(source_width)).unwrap_or(u64::MAX) >= guarded_width
+            && u64::try_from(scale.scale(source_height)).unwrap_or(u64::MAX) >= guarded_height
     };
 
     if meets_guard(turbojpeg::ScalingFactor::ONE_QUARTER) {

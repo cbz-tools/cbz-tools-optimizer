@@ -6,12 +6,14 @@
 use std::time::Duration;
 
 use anyhow::{bail, ensure, Result};
+use image::{DynamicImage, RgbaImage};
 use webp_anim::{
-    inspect, transcode_animated_webp, AnimationDecoder, AnimationEncoderOptions, AnimationInfo,
-    AnimationTranscodeOptions, CanvasSize, DecodeLimits, InspectLimits, ResizeOptions, ResizePlan,
-    WebpKind,
+    inspect, transcode_animated_webp, AnimationDecoder, AnimationEncoder, AnimationEncoderOptions,
+    AnimationInfo, AnimationTranscodeOptions, CanvasSize, DecodeLimits, InspectLimits,
+    ResizeOptions, ResizePlan, TranscodedAnimation, WebpKind,
 };
 
+use crate::resize::{input_orientation, oriented_dimensions};
 use crate::{
     AnimatedWebpEncoding, AnimatedWebpKeyframePolicy, AnimatedWebpOptions, AnimatedWebpOutputPolicy,
 };
@@ -76,6 +78,12 @@ pub fn optimize_animated_webp(
         WebpKind::Animated(info) => info,
         WebpKind::Static(_) => bail!("input is not an animated WebP"),
     };
+    let orientation = input_orientation(input);
+    let oriented_canvas = {
+        let (width, height) =
+            oriented_dimensions((info.canvas.width, info.canvas.height), orientation);
+        CanvasSize { width, height }
+    };
 
     let resize_options = ResizeOptions {
         maximum: CanvasSize {
@@ -86,11 +94,11 @@ pub fn optimize_animated_webp(
         filter: options.resize_filter.into(),
         max_output_rgba_bytes: options.max_output_rgba_bytes,
     };
-    let resize = ResizePlan::new(info.canvas, resize_options)?;
+    let resize = ResizePlan::new(oriented_canvas, resize_options)?;
 
     // Do not re-encode an already in-bounds animation: it would add a lossy
     // generation without applying the requested geometric resize.
-    if resize.is_noop() {
+    if resize.is_noop() && orientation == image::metadata::Orientation::NoTransforms {
         let mut decoder = AnimationDecoder::new(input, decode_limits(options))?;
         let mut total_duration = Duration::ZERO;
         let mut decoded_frames = 0_u32;
@@ -120,15 +128,25 @@ pub fn optimize_animated_webp(
     }
 
     let encoder_options = encoder_options(info, options);
-    let transcoded = transcode_animated_webp(
-        input,
-        AnimationTranscodeOptions {
-            decode_limits: decode_limits(options),
-            resize: resize_options,
-            encoder_config: encoder_options.config,
-            animation: encoder_options.animation,
-        },
-    )?;
+    let transcoded = if orientation == image::metadata::Orientation::NoTransforms {
+        transcode_animated_webp(
+            input,
+            AnimationTranscodeOptions {
+                decode_limits: decode_limits(options),
+                resize: resize_options,
+                encoder_config: encoder_options.config,
+                animation: encoder_options.animation,
+            },
+        )?
+    } else {
+        transcode_oriented_animated_webp(
+            input,
+            decode_limits(options),
+            resize,
+            encoder_options,
+            orientation,
+        )?
+    };
     let report = report(
         input.len(),
         transcoded.bytes.len(),
@@ -146,6 +164,60 @@ pub fn optimize_animated_webp(
     Ok(AnimatedWebpOutcome::Optimized {
         bytes: transcoded.bytes,
         report,
+    })
+}
+
+fn transcode_oriented_animated_webp(
+    input: &[u8],
+    decode_limits: DecodeLimits,
+    resize: ResizePlan,
+    encoder_options: AnimationEncoderOptions,
+    orientation: image::metadata::Orientation,
+) -> Result<TranscodedAnimation> {
+    let mut decoder = AnimationDecoder::new(input, decode_limits)?;
+    let source = *decoder.info();
+    // An orientation-only transform already has the destination dimensions;
+    // avoid a workspace buffer and its no-op full-frame copy in that case.
+    let mut workspace = if resize.is_noop() {
+        None
+    } else {
+        Some(resize.workspace()?)
+    };
+    let mut encoder = AnimationEncoder::new(resize.destination(), encoder_options)?;
+    let mut frame_count = 0_u32;
+    let mut total_duration = Duration::ZERO;
+
+    while let Some(frame) = decoder.next_frame()? {
+        total_duration = total_duration
+            .checked_add(frame.duration)
+            .ok_or_else(|| anyhow::anyhow!("animation duration overflow"))?;
+        let image = RgbaImage::from_raw(source.canvas.width, source.canvas.height, frame.rgba)
+            .ok_or_else(|| anyhow::anyhow!("invalid animated WebP RGBA frame"))?;
+        let mut image = DynamicImage::ImageRgba8(image);
+        image.apply_orientation(orientation);
+        let mut rgba = image.into_rgba8().into_raw();
+        if let Some(workspace) = workspace.as_mut() {
+            workspace.transform_rgba(&mut rgba)?;
+            encoder.add_rgba(workspace.pixels(), frame.duration)?;
+        } else {
+            encoder.add_rgba(&rgba, frame.duration)?;
+        }
+        frame_count = frame_count
+            .checked_add(1)
+            .ok_or_else(|| anyhow::anyhow!("animation frame count overflow"))?;
+    }
+    ensure!(
+        frame_count == source.frame_count,
+        "decoder produced {frame_count} frames; expected {}",
+        source.frame_count
+    );
+
+    Ok(TranscodedAnimation {
+        bytes: encoder.finish()?,
+        input: source,
+        output_canvas: resize.destination(),
+        frame_count,
+        total_duration,
     })
 }
 
