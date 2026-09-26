@@ -1,5 +1,6 @@
 pub mod animated_webp;
 pub mod archive;
+mod epub;
 pub(crate) mod gif;
 pub mod processor;
 pub mod resize;

@@ -1,4 +1,4 @@
-//! Archive input abstraction shared by ZIP/CBZ and RAR/CBR processing.
+//! Archive input abstraction shared by ZIP/CBZ, RAR/CBR, and EPUB processing.
 
 use std::fs::File;
 use std::io::Read;
@@ -10,6 +10,7 @@ use anyhow::{Context, Result};
 pub enum ArchiveKind {
     Zip,
     Rar,
+    Epub,
 }
 
 /// One entry read from an archive. It is held only while that entry is in the
@@ -33,6 +34,7 @@ pub fn archive_kind(path: &Path) -> Option<ArchiveKind> {
     match extension.as_str() {
         "zip" | "cbz" => Some(ArchiveKind::Zip),
         "rar" | "cbr" => Some(ArchiveKind::Rar),
+        "epub" => Some(ArchiveKind::Epub),
         _ => None,
     }
 }
@@ -43,12 +45,13 @@ pub fn is_supported_archive_path(path: &Path) -> bool {
 
 /// Read lightweight metadata needed by progress events. ZIP names come from
 /// the central directory. RAR uses UnRAR's listing mode, which advances by
-/// discarding payloads without returning entry buffers; the real reader stays
-/// a separate sequential processing pass.
+/// discarding payloads without returning entry buffers; EPUB metadata counts
+/// only page images referenced by the package spine.
 pub(crate) fn archive_metadata(path: &Path) -> Result<ArchiveMetadata> {
     match archive_kind(path) {
         Some(ArchiveKind::Zip) => read_zip_metadata(path),
         Some(ArchiveKind::Rar) => read_rar_metadata(path),
+        Some(ArchiveKind::Epub) => crate::epub::read_epub_metadata(path),
         None => anyhow::bail!("Unsupported archive extension: {}", path.display()),
     }
 }
@@ -56,6 +59,11 @@ pub(crate) fn archive_metadata(path: &Path) -> Result<ArchiveMetadata> {
 pub(crate) enum ArchiveReader {
     Zip {
         archive: zip::ZipArchive<File>,
+        next_index: usize,
+    },
+    Epub {
+        archive: zip::ZipArchive<File>,
+        pages: Vec<crate::epub::EpubPage>,
         next_index: usize,
     },
     #[cfg(feature = "rar")]
@@ -75,6 +83,20 @@ impl ArchiveReader {
                     .with_context(|| format!("Failed to open ZIP: {}", path.display()))?;
                 Ok(Self::Zip {
                     archive,
+                    next_index: 0,
+                })
+            }
+            Some(ArchiveKind::Epub) => {
+                let file = File::open(path)
+                    .with_context(|| format!("Failed to open EPUB: {}", path.display()))?;
+                let mut archive = zip::ZipArchive::new(file).with_context(|| {
+                    format!("Failed to open EPUB ZIP container: {}", path.display())
+                })?;
+                let pages = crate::epub::resolve_epub_pages(&mut archive)
+                    .with_context(|| format!("Failed to parse EPUB: {}", path.display()))?;
+                Ok(Self::Epub {
+                    archive,
+                    pages,
                     next_index: 0,
                 })
             }
@@ -107,6 +129,29 @@ impl ArchiveReader {
                     data,
                     is_directory,
                     last_modified,
+                }))
+            }
+            Self::Epub {
+                archive,
+                pages,
+                next_index,
+            } => {
+                let Some(page) = pages.get(*next_index) else {
+                    return Ok(None);
+                };
+                *next_index += 1;
+                let mut source = archive.by_name(&page.archive_path).with_context(|| {
+                    format!("EPUB page image is missing: {}", page.archive_path)
+                })?;
+                let mut data = Vec::new();
+                source.read_to_end(&mut data).with_context(|| {
+                    format!("Failed to read EPUB page image: {}", page.archive_path)
+                })?;
+                Ok(Some(ArchiveEntry {
+                    name: page.entry_name.clone(),
+                    data,
+                    is_directory: false,
+                    last_modified: None,
                 }))
             }
             #[cfg(feature = "rar")]

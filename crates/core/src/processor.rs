@@ -782,7 +782,7 @@ fn resolve_archive_plans(archive_paths: &[PathBuf], config: &OptimizeConfig) -> 
 fn resolve_output_path(input: &Path, config: &OptimizeConfig) -> Result<OutputResolution> {
     let stem = input.file_stem().unwrap_or_default().to_string_lossy();
     let ext = match archive_kind(input) {
-        Some(ArchiveKind::Rar) => "cbz".to_owned(),
+        Some(ArchiveKind::Rar | ArchiveKind::Epub) => "cbz".to_owned(),
         _ => input
             .extension()
             .unwrap_or_default()

@@ -783,7 +783,10 @@ impl eframe::App for App {
                     .clicked()
                 {
                     if let Some(paths) = rfd::FileDialog::new()
-                        .add_filter("ZIP/CBZ/RAR/CBR", &["zip", "cbz", "rar", "cbr"])
+                        .add_filter(
+                            "ZIP/CBZ/RAR/CBR/EPUB",
+                            &["zip", "cbz", "rar", "cbr", "epub"],
+                        )
                         .pick_files()
                     {
                         for p in paths {

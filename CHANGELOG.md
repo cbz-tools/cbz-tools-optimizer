@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.0] - 2026-09-26
+
+### Added
+
+- EPUB image books can now be opened and optimized from the CLI and GUI, with output saved as CBZ.
+
 ## [0.1.12] - 2026-09-09
 
 ### Fixed

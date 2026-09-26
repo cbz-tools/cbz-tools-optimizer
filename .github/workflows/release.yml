@@ -135,6 +135,7 @@ jobs:
           files: |
             target/package/*.zip
           draft: false
+          body: '[**Changelog**](https://github.com/cbz-tools/cbz-tools-optimizer/blob/master/CHANGELOG.md)'
 
   build-linux:
     name: Build Linux (CLI only)
@@ -180,6 +181,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: "*.tar.gz"
+          body: '[**Changelog**](https://github.com/cbz-tools/cbz-tools-optimizer/blob/master/CHANGELOG.md)'
 
   build-macos:
     name: Build macOS (CLI only)
@@ -231,3 +233,4 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: "*.tar.gz"
+          body: '[**Changelog**](https://github.com/cbz-tools/cbz-tools-optimizer/blob/master/CHANGELOG.md)'

@@ -1,6 +1,6 @@
 # cbz-tools-optimizer
 
-High-performance CBZ optimizer built in Rust — batch resize, compress, and convert images (JPEG/PNG/WebP/AVIF/GIF) inside ZIP/CBZ/RAR/CBR archives, fully offline.
+High-performance CBZ optimizer built in Rust — batch resize, compress, and convert images (JPEG/PNG/WebP/AVIF/GIF) from ZIP/CBZ/RAR/CBR archives and image-based EPUBs, fully offline.
 CLI for Windows / Linux / macOS. Windows GUI included.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -15,7 +15,7 @@ Download the latest release from [Releases](https://github.com/cbz-tools/cbz-too
 |---|---|
 | `cbz-tools-optimizer-vX.Y.Z-windows-x64.zip` | `cbz-opt.exe` (CLI) + `cbz-opt-gui.exe` (GUI) |
 | `cbz-tools-optimizer-vX.Y.Z-linux-x64.tar.gz` | `cbz-opt` (CLI) |
-| `cbz-tools-optimizer-vX.Y.Z-macos-x64.tar.gz` | `cbz-opt` (CLI) |
+| `cbz-tools-optimizer-vX.Y.Z-macos-arm64.tar.gz` | `cbz-opt` (CLI) |
 
 Extract the archive and run `cbz-opt.exe` or `cbz-opt-gui.exe` directly. No installation is required. Linux and macOS archives remain CLI-only.
 
@@ -45,6 +45,9 @@ cbz-opt input.cbz
 
 # Convert a RAR/CBR book to an optimized CBZ
 cbz-opt input.rar
+
+# Optimize an image-based EPUB as a CBZ
+cbz-opt input.epub
 
 # Multiple files
 cbz-opt *.zip
@@ -129,8 +132,9 @@ cbz-opt --output-format jpeg --convert-only input.cbz
 | ZIP | ZIP |
 | CBZ | CBZ |
 | RAR / CBR | CBZ |
+| EPUB image book | CBZ |
 
-RAR/CBR input follows the same UnRAR-based handling as the companion viewer. The output is a ZIP container with a `.cbz` extension.
+EPUB input follows the spine reading order and includes page images referenced by its XHTML or SVG documents, with CSS image references used as a fallback. EPUB text, styling, fonts, and other non-page resources are not copied to the output. RAR/CBR input follows the same UnRAR-based handling as the companion viewer. Both RAR/CBR and EPUB produce a ZIP container with a `.cbz` extension.
 
 ### Images
 
@@ -153,7 +157,7 @@ Static images are resized and re-encoded using the selected output format and qu
 ## GUI Usage
 
 1. Launch `cbz-opt-gui.exe`
-2. Drag and drop ZIP/CBZ/RAR/CBR files or folders onto the window (or use **Add Files…** / **Add Folder…**)
+2. Drag and drop ZIP/CBZ/RAR/CBR/EPUB files or folders onto the window (or use **Add Files…** / **Add Folder…**)
 3. Configure options via the **⚙** button and click **▶ Start**
 4. A completion summary is shown next to the Start button when processing finishes
 
@@ -197,7 +201,7 @@ Please use the provided issue templates.
 ## How It Works
 
 ```text
-Multiple ZIP/CBZ/RAR/CBR files
+Multiple ZIP/CBZ/RAR/CBR/EPUB files
   └── process archives in parallel
         └── process image entries in parallel
               ├── Static images
@@ -210,6 +214,7 @@ Multiple ZIP/CBZ/RAR/CBR files
                     └── GIF decode → Animated WebP encode
 ```
 
+- EPUB image books are read in OPF spine order. Referenced page images are sent through the same optimizer settings and processing pipeline as archive images; EPUB output uses the existing CBZ naming and overwrite rules.
 - Images already within the pixel-dimension limit are not resized, but are still encoded into the selected output format in normal mode. To preserve their bytes, use `--convert-only` with the matching output format.
 - Animated WebP and Animated GIF are processed through dedicated animation paths that preserve frame timing, loop count, and animation.
 - Animated GIF frames are decoded and encoded sequentially. Animated GIF input is converted to Animated WebP; `--convert-only` leaves the canvas dimensions unchanged.

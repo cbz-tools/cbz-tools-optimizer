@@ -15,11 +15,11 @@ use clap::Parser;
 #[command(
     name = "cbz-opt",
     version,
-    about = "Resize images inside ZIP/CBZ/RAR/CBR files — blazing fast with parallel processing",
+    about = "Resize images inside ZIP/CBZ/RAR/CBR/EPUB files — blazing fast with parallel processing",
     long_about = None,
 )]
 struct Args {
-    /// Input ZIP/CBZ/RAR/CBR files (multiple files supported)
+    /// Input ZIP/CBZ/RAR/CBR/EPUB files (multiple files supported)
     #[arg(required = true, value_name = "FILE")]
     files: Vec<PathBuf>,
 

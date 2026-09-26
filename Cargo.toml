@@ -8,7 +8,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.1.12"
+version = "0.2.0"
 edition = "2021"
 authors = ["cbz-tools"]
 license = "MIT"
@@ -40,6 +40,7 @@ zengif = "=0.7.3"
 rayon = "1.10"
 # ZIP
 zip = { version = "2.2", default-features = false, features = ["deflate"] }
+quick-xml = "0.39.2"
 # RAR input (UnRAR backend; enabled by the CLI and GUI crates)
 unrar = "0.5"
 unrar_sys = "0.5"
